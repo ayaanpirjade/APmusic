@@ -1,6 +1,6 @@
 import { Song, Album, Playlist, Artist, LyricsData, SpotifyPreset, AIDJMix } from '../types';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export const API_BASE_URL = (((import.meta as any).env?.VITE_API_BASE_URL as string) || '').replace(/\/$/, '');
 const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 export const api = {

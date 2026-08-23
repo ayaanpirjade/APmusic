@@ -63,7 +63,7 @@ export const SongCard: React.FC<SongCardProps> = ({
           className={`absolute bottom-2.5 right-2.5 transition-all duration-300 ${
             isCurrentlyPlaying
               ? 'opacity-100 scale-100'
-              : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'
+              : 'opacity-100 scale-100 sm:opacity-0 sm:scale-75 sm:group-hover:opacity-100 sm:group-hover:scale-100'
           }`}
         >
           <div className="w-11 h-11 rounded-2xl bg-white text-black flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-transform">
@@ -104,7 +104,7 @@ export const SongCard: React.FC<SongCardProps> = ({
 
       {/* Quick Action Footer */}
       <div
-        className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >
         <button

@@ -111,7 +111,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white">{user.name}</h2>
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
-                  {user.plan}
+                  {user.isGoogleAuth ? 'Google Verified' : 'Local Profile'}
                 </span>
               </div>
               <p className="text-xs text-slate-400">{user.email}</p>
@@ -119,7 +119,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div>
-            {user.isGoogleAuth ? (
+            {user.isAuthenticated ? (
               <button
                 onClick={logout}
                 className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/10 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-bold transition-colors border border-white/10"

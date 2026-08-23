@@ -107,6 +107,7 @@ export interface UserProfile {
   email: string;
   avatar: string;
   isGoogleAuth: boolean;
+  isAuthenticated?: boolean;
   plan: 'APMUSIC Hi-Res Lossless' | 'Premium Glass';
 }
 

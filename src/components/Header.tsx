@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* User Profile & Google OAuth */}
           <div className="relative">
-            {user?.isGoogleAuth ? (
+            {user?.isAuthenticated ? (
               <button
                 onClick={onOpenLogin}
                 className="flex items-center gap-2 p-1 rounded-2xl ios-glass border border-indigo-400/40 hover:scale-105 transition-all"

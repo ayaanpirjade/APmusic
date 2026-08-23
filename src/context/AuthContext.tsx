@@ -15,6 +15,7 @@ interface AuthContextType {
   isGoogleLoaded: boolean;
   loginWithGoogle: () => void;
   loginWithGooglePopup: () => void;
+  loginAsGuest: (name?: string) => void;
   logout: () => void;
   updateGuestProfile: (name: string, avatar: string) => void;
   toggleLikeSong: (song: Song) => boolean;
@@ -47,6 +48,7 @@ const DEFAULT_USER: UserProfile = {
   email: 'listener@apmusic.app',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
   isGoogleAuth: false,
+  isAuthenticated: false,
   plan: 'APMUSIC Hi-Res Lossless',
 };
 
@@ -81,7 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      return saved ? JSON.parse(saved) : DEFAULT_USER;
+      if (!saved) return DEFAULT_USER;
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_USER,
+        ...parsed,
+        isAuthenticated: parsed.isAuthenticated ?? Boolean(parsed.isGoogleAuth),
+      };
     } catch {
       return DEFAULT_USER;
     }
@@ -157,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: payload.email || 'user@gmail.com',
           avatar: payload.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
           isGoogleAuth: true,
+          isAuthenticated: true,
           plan: 'APMUSIC Hi-Res Lossless',
         };
         setUser(loggedUser);
@@ -186,6 +195,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkGSI();
   }, [handleGoogleCredentialResponse]);
 
+  const loginAsGuest = useCallback((name = 'APMUSIC Listener') => {
+    setUser((previous) => ({
+      ...DEFAULT_USER,
+      id: `guest-${Date.now()}`,
+      name: name.trim() || DEFAULT_USER.name,
+      email: 'guest@apmusic.app',
+      avatar: previous?.avatar || DEFAULT_USER.avatar,
+      isGoogleAuth: false,
+      isAuthenticated: true,
+    }));
+  }, []);
+
   const loginWithGoogle = useCallback(() => {
     // @ts-ignore
     if (window.google?.accounts?.id) {
@@ -194,37 +215,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
             // When preview environment blocks third-party cookie prompt or popup
-            const mockName = prompt('Sign in with Google Account Name:', 'Ayaan Patel');
-            const mockEmail = prompt('Google Account Email:', 'ayaanp.2008skp@gmail.com');
-            if (mockName) {
-              setUser({
-                id: `google-user-${Date.now()}`,
-                name: mockName,
-                email: mockEmail || 'ayaanp.2008skp@gmail.com',
-                avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-                isGoogleAuth: true,
-                plan: 'APMUSIC Hi-Res Lossless',
-              });
-            }
+            loginAsGuest();
           }
         });
         return;
       } catch (_) {}
     }
 
-    // Direct Profile Login
-    const mockName = prompt('Enter Google Account Name for Lossless Profile:', 'Ayaan Patel');
-    if (mockName) {
-      setUser({
-        id: `google-${Date.now()}`,
-        name: mockName,
-        email: 'ayaanp.2008skp@gmail.com',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-        isGoogleAuth: true,
-        plan: 'APMUSIC Hi-Res Lossless',
-      });
-    }
-  }, []);
+    // Native WebView or blocked GSI fallback: use a persistent local profile.
+    loginAsGuest();
+  }, [loginAsGuest]);
 
   const logout = () => {
     setUser(DEFAULT_USER);
@@ -379,6 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isGoogleLoaded,
         loginWithGoogle,
         loginWithGooglePopup: loginWithGoogle,
+        loginAsGuest,
         logout,
         updateGuestProfile,
         toggleLikeSong,

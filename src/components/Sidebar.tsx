@@ -200,10 +200,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {user.name}
           </div>
           <div className="text-[11px] text-slate-400 truncate">
-            {user.isGoogleAuth ? 'Google Account' : 'Tap to Login'}
+            {user.isAuthenticated ? (user.isGoogleAuth ? 'Google Account' : 'Local Profile') : 'Tap to Login'}
           </div>
         </div>
-        {user.isGoogleAuth ? (
+        {user.isAuthenticated ? (
           <User className="w-4 h-4 text-emerald-400 shrink-0" />
         ) : (
           <LogIn className="w-4 h-4 text-indigo-400 shrink-0" />

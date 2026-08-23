@@ -8,7 +8,7 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
-  const { user, loginWithGooglePopup, logout, likedSongs, customPlaylists, updateGuestProfile } = useAuth();
+  const { user, loginWithGooglePopup, loginAsGuest, logout, likedSongs, customPlaylists, updateGuestProfile } = useAuth();
   const [customName, setCustomName] = useState(user?.name || '');
   const [customEmail, setCustomEmail] = useState(user?.email || '');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -60,9 +60,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-base font-bold text-white truncate">{user.name}</span>
-              {user.isGoogleAuth && (
+              {user.isAuthenticated && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Google Verified
+                  {user.isGoogleAuth ? 'Google Verified' : 'Local Profile'}
                 </span>
               )}
             </div>
@@ -99,10 +99,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          {!user.isGoogleAuth ? (
+          {!user.isAuthenticated ? (
             <button
               onClick={() => {
                 loginWithGooglePopup();
+                onClose();
               }}
               className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-black font-bold text-sm shadow-xl shadow-white/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
@@ -134,7 +135,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
               className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold text-sm transition-all"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sign Out of Google</span>
+              <span>Sign Out</span>
+            </button>
+          )}
+
+          {!user.isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => {
+                loginAsGuest();
+                onClose();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 font-bold text-sm transition-all"
+            >
+              <User className="w-4 h-4" />
+              <span>Continue as Guest</span>
             </button>
           )}
 
