@@ -1,0 +1,42 @@
+{
+  "name": "APMUSIC Lossless",
+  "short_name": "APMUSIC",
+  "description": "High-fidelity lossless music streaming with 320kbps audio, synced lyrics, studio equalizer and AI DJ",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["music", "entertainment", "audio"],
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=192&auto=format&fit=crop&q=80",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512&auto=format&fit=crop&q=80",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Search Music",
+      "short_name": "Search",
+      "description": "Quick search songs and artists",
+      "url": "/?tab=search"
+    },
+    {
+      "name": "AI Mood DJ",
+      "short_name": "AI DJ",
+      "description": "Generate custom AI music mix",
+      "url": "/?tab=aidj"
+    }
+  ]
+}

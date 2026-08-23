@@ -1,0 +1,6 @@
+{
+  "name": "APMUSIC",
+  "description": "High-fidelity lossless music streaming application with Spotify playlist importer, 320kbps audio playback, synced lyrics, studio equalizer, Gemini AI mood DJ, and Android APK / PWA install support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
