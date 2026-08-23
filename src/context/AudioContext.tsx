@@ -304,6 +304,14 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return '';
   };
 
+  // Route third-party media through our same-origin proxy so browsers can
+  // play it with Web Audio and Vercel can add the required CORS/range headers.
+  const toStreamProxyUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('/api/stream-proxy?')) return url;
+    return `/api/stream-proxy?url=${encodeURIComponent(url)}`;
+  };
+
   // Fetch Lyrics for a target song
   const fetchLyrics = useCallback(async (targetSong?: Song) => {
     const song = targetSong || currentSong;
@@ -380,6 +388,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           console.warn('Failed to dynamically hydrate song stream:', fetchErr);
         }
       }
+
+      playUrl = toStreamProxyUrl(playUrl);
 
       if (!playUrl) {
         console.error('No playable URL for song:', song.name);
@@ -634,7 +644,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (currentSong && audioRef.current) {
       const curTime = audioRef.current.currentTime;
       const wasPlaying = isPlaying;
-      const newUrl = resolvePlayUrl(currentSong, quality);
+      const newUrl = toStreamProxyUrl(resolvePlayUrl(currentSong, quality));
       audioRef.current.src = newUrl;
       audioRef.current.currentTime = curTime;
       if (wasPlaying) {
@@ -724,8 +734,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const url = resolvePlayUrl(song, '320kbps') || song.playUrl;
       if (!url) return;
-
-      const proxyUrl = `/api/stream-proxy?url=${encodeURIComponent(url)}`;
+      const proxyUrl = toStreamProxyUrl(url);
       const response = await fetch(proxyUrl);
       const blob = await response.blob();
 

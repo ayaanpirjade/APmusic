@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import {
   searchSongs,
@@ -18,12 +17,8 @@ import { generateAIDJMix } from './server/aiService.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-async function startServer() {
+function createApp() {
   const app = express();
-  const PORT = 3000;
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
@@ -265,44 +260,60 @@ async function startServer() {
     }
   });
 
-  // Audio Stream Proxy (allows downloading / caching streams with proper CORS headers)
+  // Audio Stream Proxy. Playback uses this same-origin endpoint so the
+  // browser can attach the stream to Web Audio without third-party CORS issues.
   app.get('/api/stream-proxy', async (req, res) => {
     try {
-      const audioUrl = req.query.url as string;
+      const audioUrl = typeof req.query.url === 'string' ? req.query.url : '';
       if (!audioUrl) return res.status(400).send('Missing audio url');
 
-      const response = await fetch(audioUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Range': req.headers.range || 'bytes=0-',
-        },
-      });
-
-      res.status(response.status);
-      response.headers.forEach((val, key) => {
-        if (['content-type', 'content-length', 'content-range', 'accept-ranges'].includes(key.toLowerCase())) {
-          res.setHeader(key, val);
-        }
-      });
-      res.setHeader('Access-Control-Allow-Origin', '*');
-
-      if (response.body) {
-        // @ts-ignore
-        const nodeReadable = response.body;
-        // @ts-ignore
-        for await (const chunk of nodeReadable) {
-          res.write(chunk);
-        }
-        res.end();
-      } else {
-        res.end();
+      const parsedUrl = new URL(audioUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).send('Unsupported audio url');
       }
+
+      const upstreamHeaders: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0',
+      };
+      if (req.headers.range) upstreamHeaders.Range = req.headers.range;
+
+      const response = await fetch(parsedUrl, { headers: upstreamHeaders });
+      res.status(response.status);
+
+      response.headers.forEach((value, key) => {
+        if (['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'].includes(key.toLowerCase())) {
+          res.setHeader(key, value);
+        }
+      });
+      if (!res.getHeader('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+
+      if (!response.body) return res.end();
+
+      // Node 18+ exposes fetch response bodies as async iterables.
+      for await (const chunk of response.body as any) {
+        if (!res.write(chunk)) {
+          await new Promise<void>((resolve) => res.once('drain', resolve));
+        }
+      }
+      res.end();
     } catch (err: any) {
-      res.status(500).send(err.message);
+      if (!res.headersSent) res.status(502).send(`Audio proxy error: ${err.message}`);
+      else res.end();
     }
   });
 
-  // Vite middleware in dev or static files in production
+  return app;
+}
+
+export const app = createApp();
+
+async function startServer() {
+  const PORT = Number(process.env.PORT || 3000);
+
+  // Vite middleware in dev or static files in production.
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -323,4 +334,8 @@ async function startServer() {
   });
 }
 
-startServer();
+// Vercel imports the exported Express app as a serverless function. Local
+// development and the bundled Node server still use the long-running listener.
+if (process.env.VERCEL !== '1') {
+  void startServer();
+}
