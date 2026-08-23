@@ -42,7 +42,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-32 pt-2 animate-in fade-in duration-300 select-none">
+    <div className="space-y-6 pb-32 pt-2 select-none">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

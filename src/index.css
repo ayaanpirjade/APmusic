@@ -142,3 +142,103 @@ input[type="range"]::-webkit-slider-runnable-track {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 }
+
+/* Explicit Capacitor fallback for Android WebView compositing bugs. */
+.capacitor-native,
+.capacitor-native body {
+  background: #07090e;
+}
+
+.capacitor-native .ios-glass,
+.capacitor-native .ios-glass-card,
+.capacitor-native .ios-glass-pill,
+.capacitor-native .ios-glass-dock,
+.capacitor-native .ios-glass-active {
+  background: #121629 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  filter: none !important;
+  color: #f8fafc !important;
+}
+
+.capacitor-native .ios-glass-card *,
+.capacitor-native .ios-glass *,
+.capacitor-native .ios-glass-pill *,
+.capacitor-native .ios-glass-dock *,
+.capacitor-native .ios-glass-active * {
+  visibility: visible !important;
+}
+
+.capacitor-native [class*='animate-in'],
+.capacitor-native [class*='fade-in'],
+.capacitor-native [class*='zoom-in'] {
+  animation: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+}
+
+.capacitor-native main {
+  min-height: calc(100vh - 150px);
+  isolation: isolate;
+  color: #f8fafc !important;
+}
+
+.capacitor-native main h1,
+.capacitor-native main h2,
+.capacitor-native main h3,
+.capacitor-native main h4,
+.capacitor-native main span,
+.capacitor-native main label,
+.capacitor-native main button {
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.capacitor-native main p {
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+/* Narrow-screen fallback for mobile browsers and Android custom tabs. */
+@media (max-width: 768px) {
+  main {
+    isolation: isolate;
+    color: #f8fafc !important;
+  }
+
+  main h1,
+  main h2,
+  main h3,
+  main h4,
+  main span,
+  main label,
+  main button {
+    opacity: 1 !important;
+    visibility: visible !important;
+    -webkit-text-fill-color: currentColor;
+  }
+
+  main p {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .ios-glass,
+  .ios-glass-card,
+  .ios-glass-pill,
+  .ios-glass-dock,
+  .ios-glass-active {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+  }
+}

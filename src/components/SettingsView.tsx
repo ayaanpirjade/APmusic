@@ -90,7 +90,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-32 pt-2 animate-in fade-in duration-300 select-none">
+    <div className="max-w-4xl mx-auto space-y-8 pb-32 pt-2 select-none">
       <div>
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Settings & Studio Controls</h1>
         <p className="text-xs sm:text-sm text-slate-400">
