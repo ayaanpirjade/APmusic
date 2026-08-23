@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Song, RepeatMode, AudioQualitySetting, EqualizerBands, SyncedLyricLine, LyricsData } from '../types';
-import { api } from '../services/api';
+import { api, API_BASE_URL } from '../services/api';
 import { useAuth } from './AuthContext';
 
 interface AudioContextType {
@@ -308,8 +308,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // play it with Web Audio and Vercel can add the required CORS/range headers.
   const toStreamProxyUrl = (url: string): string => {
     if (!url) return '';
-    if (url.startsWith('/api/stream-proxy?')) return url;
-    return `/api/stream-proxy?url=${encodeURIComponent(url)}`;
+    if (url.startsWith('/api/stream-proxy?')) {
+      return `${API_BASE_URL}${url}`;
+    }
+    return `${API_BASE_URL}/api/stream-proxy?url=${encodeURIComponent(url)}`;
   };
 
   // Fetch Lyrics for a target song

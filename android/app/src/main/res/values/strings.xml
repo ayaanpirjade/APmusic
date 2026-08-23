@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">APMUSIC</string>
+    <string name="title_activity_main">APMUSIC</string>
+    <string name="package_name">com.apmusic.app</string>
+    <string name="custom_url_scheme">com.apmusic.app</string>
+</resources>
