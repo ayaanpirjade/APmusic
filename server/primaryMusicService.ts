@@ -1,5 +1,5 @@
 import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml, searchSongs } from './saavnService.js';
-import { resolveFallenTrack, searchFallenFallbackSongs } from './fallenService.js';
+import { getFallenTrackDetails, resolveFallenTrack, searchFallenFallbackSongs } from './fallenService.js';
 
 const PRIMARY_API_BASE = 'https://spotify-theta-ten.vercel.app/api/v1';
 const PRIMARY_API_KEY = (process.env.MUSIC_API_KEY || '').trim();
@@ -119,7 +119,30 @@ export async function resolveTrackAudioStream(
 ): Promise<{ playUrl: string; downloadUrl: { quality: string; url: string }[] } | null> {
   const { query, cleanTitle } = cleanTitleAndArtist(title, artist);
 
-  // 1. Try JioSaavn / Worker lossless direct audio stream search
+  // 1. Resolve by the exact YouTube ID first. Never use a title-only match
+  // when an ID is available, because similarly named songs can share metadata.
+  if (youtubeId) {
+    const cleanYoutubeId = youtubeId.replace(/^yt[-_]/, '').trim();
+    if (cleanYoutubeId) {
+      try {
+        const exactUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(cleanYoutubeId)}`;
+        const exact = await getFallenTrackDetails(exactUrl);
+        const exactStream = exact?.cdnurl || exact?.download_url || exact?.stream_url || '';
+        if (exactStream && !/youtube\.com|youtu\.be/i.test(exactStream)) {
+          return {
+            playUrl: exactStream,
+            downloadUrl: formatDownloadUrls(exactStream),
+          };
+        }
+      } catch (_) {}
+    }
+
+    // An exact-ID miss must not fall back to a title search, which can play
+    // a different recording while showing the requested song's title.
+    return null;
+  }
+
+  // 2. Try JioSaavn / Worker lossless direct audio stream search
   try {
     const saavnMatches = await searchSongs(query, 1, 3);
     if (saavnMatches.length > 0) {
@@ -133,7 +156,7 @@ export async function resolveTrackAudioStream(
     }
   } catch (_) {}
 
-  // 2. Try with just the cleaned title if query was too specific
+  // 3. Try with just the cleaned title if query was too specific
   if (cleanTitle !== query) {
     try {
       const titleMatches = await searchSongs(cleanTitle, 1, 2);
@@ -149,7 +172,7 @@ export async function resolveTrackAudioStream(
     } catch (_) {}
   }
 
-  // 3. Fallback to Fallen stream resolution
+  // 4. Fallback to Fallen stream resolution
   try {
     const fallenMatches = await searchFallenFallbackSongs(cleanTitle || title, 2);
     if (fallenMatches.length > 0) {

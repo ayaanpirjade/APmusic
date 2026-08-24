@@ -1,6 +1,6 @@
 import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml } from './saavnService.js';
 
-const FALLEN_API_KEY = process.env.FALLEN_API_KEY || '973f0a_tVVZ2B-VEM9S_Nj51YbMtBtPalBVcv4Q';
+const FALLEN_API_KEY = (process.env.FALLEN_API_KEY || process.env.ONEGRAB_API_KEY || '').trim();
 const FALLEN_BASE_URL = process.env.FALLEN_API_BASE || 'https://api.onegrab.fun';
 
 export interface FallenTrackResponse {
