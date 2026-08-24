@@ -103,6 +103,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playRequestIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
@@ -350,6 +351,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     async (song: Song, newQueue?: Song[]) => {
       if (!song) return;
 
+      const requestId = ++playRequestIdRef.current;
+      const isLatestRequest = () => playRequestIdRef.current === requestId;
+
       initWebAudio();
       if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
         await audioCtxRef.current.resume();
@@ -370,13 +374,14 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let activeSong = { ...song };
       let playUrl = resolvePlayUrl(activeSong, audioQuality);
 
-      // If URL is missing or not a direct audio file, hydrate via backend audio stream resolver
+      // If URL is missing or not a direct audio file, hydrate via backend audio stream resolver.
+      // Ignore late responses when the user has already selected another song.
       if (!playUrl || !isDirectAudio(playUrl)) {
         try {
           if (song.id) {
             const details = await api.getSongDetails(song.id, song.name, song.primaryArtists);
             if (details && (details.playUrl || (details.downloadUrl && details.downloadUrl.length > 0))) {
-              activeSong = { ...song, ...details };
+              activeSong = { ...details };
               playUrl = resolvePlayUrl(activeSong, audioQuality);
             }
           }
@@ -392,11 +397,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               playUrl = streamRes.playUrl;
             }
           }
+
+          if ((!playUrl || !isDirectAudio(playUrl)) && song.name) {
+            const searchResults = await api.searchSongs(`${song.name} ${song.primaryArtists || ''}`.trim(), 1, 3);
+            if (searchResults && searchResults.length > 0) {
+              activeSong = { ...searchResults[0] };
+              playUrl = resolvePlayUrl(activeSong, audioQuality);
+            }
+          }
         } catch (fetchErr) {
           console.warn('Failed to dynamically hydrate song stream:', fetchErr);
         }
       }
 
+      if (!isLatestRequest()) return;
+
+      playUrl = toStreamProxyUrl(playUrl);
       if (!playUrl) {
         console.error('No playable URL for song:', song.name);
         setIsLoadingSong(false);
@@ -405,17 +421,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const proxiedUrl = toStreamProxyUrl(playUrl);
 
-      // Update current state with resolved active song
+      // Update current state with resolved active song only if this is still the latest click.
+      if (!isLatestRequest()) return;
       setCurrentSong(activeSong);
       recordPlayHistory(activeSong);
 
       // Update queue item with resolved track
       setQueue((prevQueue) =>
-        prevQueue.map((item) => (item.id === activeSong.id ? { ...item, ...activeSong } : item))
+        prevQueue.map((item) =>
+          item.id === song.id || item.id === activeSong.id ? { ...item, ...activeSong } : item
+        )
       );
 
       if (audioRef.current) {
+        audioRef.current.pause();
         audioRef.current.src = proxiedUrl;
+        audioRef.current.load();
         audioRef.current
           .play()
           .then(() => setIsPlaying(true))
