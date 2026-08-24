@@ -306,22 +306,10 @@ export async function searchPrimarySongs(query: string, limit = 20): Promise<Saa
   // Map to SaavnSong models
   const songs = rawTracks.map((t) => formatPrimaryTrackToSong(t));
 
-  // Pre-resolve direct stream for the top 2 results in background for instant 0ms playback
-  if (songs.length > 0) {
-    const topTracks = songs.slice(0, 2);
-    await Promise.allSettled(
-      topTracks.map(async (s) => {
-        if (!s.playUrl) {
-          const audio = await resolveTrackAudioStream(s.name, s.primaryArtists, s.id);
-          if (audio) {
-            s.playUrl = audio.playUrl;
-            s.downloadUrl = audio.downloadUrl;
-          }
-        }
-      })
-    );
-  }
-
+  // Keep search results provider-pure. Do not pre-resolve these latest-API
+  // items through Saavn/Fallen, because that injects an old-provider URL into
+  // a result whose metadata and artwork came from the latest API. Playback is
+  // resolved on demand using the selected track's exact ID.
   return songs;
 }
 
@@ -343,22 +331,8 @@ export async function getPrimaryCharts(category = 'trending'): Promise<{
 
   const songs = data.tracks.map((t) => formatPrimaryTrackToSong(t));
 
-  // Pre-resolve direct stream for top chart tracks
-  if (songs.length > 0) {
-    const topTracks = songs.slice(0, 2);
-    await Promise.allSettled(
-      topTracks.map(async (s) => {
-        if (!s.playUrl) {
-          const audio = await resolveTrackAudioStream(s.name, s.primaryArtists, s.id);
-          if (audio) {
-            s.playUrl = audio.playUrl;
-            s.downloadUrl = audio.downloadUrl;
-          }
-        }
-      })
-    );
-  }
-
+  // Keep chart results provider-pure for the same reason as search results:
+  // resolve audio only after the user selects a specific latest-API track ID.
   return {
     category: data.category || cleanCat,
     total: data.total || songs.length,
