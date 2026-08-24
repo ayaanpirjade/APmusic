@@ -1,4 +1,4 @@
-import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml, searchSongs } from './saavnService.js';
+import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml, searchJioSongs, searchSongs } from './saavnService.js';
 import { getFallenTrackDetails, resolveFallenTrack, searchFallenFallbackSongs } from './fallenService.js';
 
 const PRIMARY_API_BASE = 'https://spotify-theta-ten.vercel.app/api/v1';
@@ -109,6 +109,45 @@ export function cleanTitleAndArtist(rawTitle: string, rawArtist = ''): { query: 
   return { query: query || rawTitle, cleanTitle: cleanTitle || rawTitle };
 }
 
+function identityTokens(value: string): Set<string> {
+  return new Set(
+    value.toLowerCase()
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .filter((token) => token.length > 1 && !['official', 'video', 'audio', 'lyrics', 'song', 'full'].includes(token))
+  );
+}
+
+function matchingSaavnCandidate(candidates: SaavnSong[], title: string, artist: string): SaavnSong | null {
+  const wantedTitle = identityTokens(title);
+  const wantedArtist = identityTokens(artist);
+  const wantedCombined = identityTokens(`${title} ${artist}`);
+  if (wantedTitle.size === 0) return null;
+
+  let best: SaavnSong | null = null;
+  let bestScore = 0;
+  for (const candidate of candidates) {
+    const candidateTitle = identityTokens(candidate.name);
+    const candidateArtist = identityTokens(candidate.primaryArtists || candidate.singers || '');
+    const candidateCombined = identityTokens(`${candidate.name} ${candidate.primaryArtists || candidate.singers || ''}`);
+    const titleOverlap = [...wantedTitle].filter((token) => candidateTitle.has(token)).length / wantedTitle.size;
+    const artistOverlap = wantedArtist.size === 0
+      ? 0.5
+      : [...wantedArtist].filter((token) => candidateArtist.has(token)).length / wantedArtist.size;
+    const combinedOverlap = wantedCombined.size === 0
+      ? 0
+      : [...wantedCombined].filter((token) => candidateCombined.has(token)).length / wantedCombined.size;
+    const score = titleOverlap * 0.55 + artistOverlap * 0.2 + combinedOverlap * 0.25;
+    const safeMatch = (titleOverlap >= 0.5 && artistOverlap >= 0.5) || combinedOverlap >= 0.65;
+    if (safeMatch && score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 /**
  * Resolve direct high-fidelity playable audio stream for a track
  */
@@ -137,8 +176,19 @@ export async function resolveTrackAudioStream(
       } catch (_) {}
     }
 
-    // An exact-ID miss must not fall back to a title search, which can play
-    // a different recording while showing the requested song's title.
+    // If exact-ID resolution is temporarily unavailable, only accept a
+    // strongly matching title+artist result. Never blindly use the first hit.
+    try {
+      const workerMatches = await searchSongs(query, 1, 8);
+      const jioMatches = await searchJioSongs(query, 1, 8);
+      const matched = matchingSaavnCandidate([...workerMatches, ...jioMatches], cleanTitle, artist);
+      if (matched && (matched.playUrl || matched.downloadUrl?.length)) {
+        return {
+          playUrl: matched.playUrl || matched.downloadUrl[matched.downloadUrl.length - 1].url,
+          downloadUrl: matched.downloadUrl || formatDownloadUrls(matched.playUrl),
+        };
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -146,7 +196,7 @@ export async function resolveTrackAudioStream(
   try {
     const saavnMatches = await searchSongs(query, 1, 3);
     if (saavnMatches.length > 0) {
-      const best = saavnMatches[0];
+      const best = matchingSaavnCandidate(saavnMatches, cleanTitle, artist) || saavnMatches[0];
       if (best.playUrl || (best.downloadUrl && best.downloadUrl.length > 0)) {
         return {
           playUrl: best.playUrl || best.downloadUrl[best.downloadUrl.length - 1]?.url,
@@ -161,7 +211,7 @@ export async function resolveTrackAudioStream(
     try {
       const titleMatches = await searchSongs(cleanTitle, 1, 2);
       if (titleMatches.length > 0) {
-        const best = titleMatches[0];
+        const best = matchingSaavnCandidate(titleMatches, cleanTitle, artist) || titleMatches[0];
         if (best.playUrl || (best.downloadUrl && best.downloadUrl.length > 0)) {
           return {
             playUrl: best.playUrl || best.downloadUrl[best.downloadUrl.length - 1]?.url,

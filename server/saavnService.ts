@@ -278,6 +278,21 @@ async function fetchJio(params: Record<string, string | number>): Promise<any> {
   }
 }
 
+export async function searchJioSongs(query: string, page = 1, limit = 20): Promise<SaavnSong[]> {
+  try {
+    const data = await fetchJio({
+      __call: 'search.getResults',
+      q: query,
+      p: page,
+      n: limit,
+    });
+    return (data.results || []).map((r: any) => formatSongPayload(r));
+  } catch (err) {
+    console.warn('JioSaavn direct search error:', err);
+    return [];
+  }
+}
+
 export async function searchSongs(query: string, page = 1, limit = 20): Promise<SaavnSong[]> {
   let primaryResults: SaavnSong[] = [];
 
@@ -294,21 +309,7 @@ export async function searchSongs(query: string, page = 1, limit = 20): Promise<
 
   // Fallback to JioSaavn if worker had no results
   if (primaryResults.length === 0) {
-    try {
-      const data = await fetchJio({
-        __call: 'search.getResults',
-        q: query,
-        p: page,
-        n: limit,
-      });
-
-      const results = data.results || [];
-      if (results.length > 0) {
-        primaryResults = results.map((r: any) => formatSongPayload(r));
-      }
-    } catch (err) {
-      console.warn('JioSaavn searchSongs error:', err);
-    }
+    primaryResults = await searchJioSongs(query, page, limit);
   }
 
   // If both primary methods returned 0 results, trigger Fallen API Fallback
