@@ -27,11 +27,26 @@ export interface FallenSearchItem {
   platform?: string;
 }
 
+const trackCache = new Map<string, { data: FallenTrackResponse | null; time: number }>();
+const searchCache = new Map<string, { data: FallenSearchItem[]; time: number }>();
+const CACHE_TTL = 1000 * 60 * 15; // 15 mins
+
 /**
  * Fetch detailed track audio stream URL from Fallen API (/api/track)
  */
 export async function getFallenTrackDetails(trackUrl: string): Promise<FallenTrackResponse | null> {
   if (!trackUrl) return null;
+
+  // Spotify web URLs are not directly streamable via OneGrab /api/track and cause timeouts
+  if (trackUrl.includes('spotify.com')) {
+    return null;
+  }
+
+  const cached = trackCache.get(trackUrl);
+  if (cached && Date.now() - cached.time < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const url = `${FALLEN_BASE_URL}/api/track?url=${encodeURIComponent(trackUrl)}`;
     const res = await fetch(url, {
@@ -40,18 +55,19 @@ export async function getFallenTrackDetails(trackUrl: string): Promise<FallenTra
         'Accept': 'application/json',
         'User-Agent': 'APmusic/1.0',
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(4000),
     });
 
     if (!res.ok) {
-      console.warn(`Fallen API /api/track returned status ${res.status} for ${trackUrl}`);
+      trackCache.set(trackUrl, { data: null, time: Date.now() });
       return null;
     }
 
     const data: FallenTrackResponse = await res.json();
+    trackCache.set(trackUrl, { data, time: Date.now() });
     return data;
   } catch (err: any) {
-    console.warn(`Fallen API getFallenTrackDetails error for ${trackUrl}:`, err.message || err);
+    trackCache.set(trackUrl, { data: null, time: Date.now() });
     return null;
   }
 }
@@ -65,6 +81,12 @@ export async function searchFallenByPlatform(
   limit = 10
 ): Promise<FallenSearchItem[]> {
   if (!query || !query.trim()) return [];
+  const cacheKey = `${platform}:${query.trim()}:${limit}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const url = `${FALLEN_BASE_URL}/api/search?query=${encodeURIComponent(query.trim())}&platform=${platform}&limit=${limit}`;
     const res = await fetch(url, {
@@ -73,21 +95,22 @@ export async function searchFallenByPlatform(
         'Accept': 'application/json',
         'User-Agent': 'APmusic/1.0',
       },
-      signal: AbortSignal.timeout(9000),
+      signal: AbortSignal.timeout(4500),
     });
 
     if (!res.ok) {
-      console.warn(`Fallen API /api/search (${platform}) returned status ${res.status}`);
+      searchCache.set(cacheKey, { data: [], time: Date.now() });
       return [];
     }
 
     const data = await res.json();
     if (data && Array.isArray(data.results)) {
+      searchCache.set(cacheKey, { data: data.results, time: Date.now() });
       return data.results;
     }
     return [];
   } catch (err: any) {
-    console.warn(`Fallen API search error (${platform}):`, err.message || err);
+    searchCache.set(cacheKey, { data: [], time: Date.now() });
     return [];
   }
 }
@@ -155,19 +178,19 @@ export async function searchFallenFallbackSongs(query: string, limit = 15): Prom
     console.warn('Fallen JioSaavn search error:', err);
   }
 
-  // Fallback to Spotify / YTMusic on Fallen API
+  // Fallback to YTMusic / YouTube on Fallen API
   try {
-    const [spotifyResults, ytResults] = await Promise.all([
-      searchFallenByPlatform(query, 'spotify', limit),
+    const [ytMusicResults, ytResults] = await Promise.all([
       searchFallenByPlatform(query, 'ytmusic', limit),
+      searchFallenByPlatform(query, 'youtube', limit),
     ]);
 
-    const combined = [...spotifyResults, ...ytResults];
+    const combined = [...ytMusicResults, ...ytResults];
     if (combined.length > 0) {
       const resolvedSongs = await Promise.all(
-        combined.slice(0, 8).map(async (item) => {
+        combined.slice(0, 4).map(async (item) => {
           let cdnUrl = '';
-          if (item.url) {
+          if (item.url && !item.url.includes('spotify.com')) {
             const trackDetails = await getFallenTrackDetails(item.url);
             if (trackDetails) {
               cdnUrl = trackDetails.cdnurl || trackDetails.download_url || trackDetails.stream_url || '';
@@ -178,8 +201,7 @@ export async function searchFallenFallbackSongs(query: string, limit = 15): Prom
       );
       return resolvedSongs;
     }
-  } catch (err) {
-    console.warn('Fallen Spotify/YTMusic search error:', err);
+  } catch (_) {
   }
 
   return [];
@@ -195,10 +217,10 @@ export async function resolveFallenTrack(
   const fullQuery = `${titleOrQuery} ${artist || ''}`.trim();
   if (!fullQuery) return null;
 
-  const platforms: Array<'jiosaavn' | 'spotify' | 'ytmusic' | 'deezer'> = [
+  const platforms: Array<'jiosaavn' | 'ytmusic' | 'youtube' | 'deezer'> = [
     'jiosaavn',
-    'spotify',
     'ytmusic',
+    'youtube',
     'deezer',
   ];
 
@@ -207,14 +229,15 @@ export async function resolveFallenTrack(
       const items = await searchFallenByPlatform(fullQuery, platform, 2);
       if (items.length > 0) {
         const bestItem = items[0];
-        const trackDetails = await getFallenTrackDetails(bestItem.url);
-        const cdnUrl = trackDetails?.cdnurl || trackDetails?.download_url || trackDetails?.stream_url;
-        if (cdnUrl) {
-          return formatFallenSong(bestItem, cdnUrl);
+        if (bestItem.url && !bestItem.url.includes('spotify.com')) {
+          const trackDetails = await getFallenTrackDetails(bestItem.url);
+          const cdnUrl = trackDetails?.cdnurl || trackDetails?.download_url || trackDetails?.stream_url;
+          if (cdnUrl) {
+            return formatFallenSong(bestItem, cdnUrl);
+          }
         }
       }
-    } catch (err) {
-      console.warn(`Fallen resolve error on ${platform}:`, err);
+    } catch (_) {
     }
   }
 

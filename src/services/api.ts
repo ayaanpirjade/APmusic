@@ -36,10 +36,32 @@ export const api = {
     return data.data;
   },
 
-  async getSongDetails(id: string): Promise<Song> {
-    const res = await fetch(apiUrl(`/api/songs/${encodeURIComponent(id)}`));
+  async getSongDetails(id: string, title?: string, artist?: string): Promise<Song> {
+    const params = new URLSearchParams();
+    if (title) params.set('title', title);
+    if (artist) params.set('artist', artist);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(apiUrl(`/api/songs/${encodeURIComponent(id)}${qs}`));
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Failed to load song');
+    return data.data;
+  },
+
+  async getSongById(id: string, title?: string, artist?: string): Promise<Song> {
+    return this.getSongDetails(id, title, artist);
+  },
+
+  async resolveAudioStream(id: string, title?: string, artist?: string): Promise<{
+    playUrl: string;
+    downloadUrl: { quality: string; url: string }[];
+  } | null> {
+    const params = new URLSearchParams();
+    if (id) params.set('id', id);
+    if (title) params.set('title', title);
+    if (artist) params.set('artist', artist);
+    const res = await fetch(apiUrl(`/api/stream/resolve?${params.toString()}`));
+    const data = await res.json();
+    if (!data.success) return null;
     return data.data;
   },
 
@@ -95,6 +117,51 @@ export const api = {
     return data.data;
   },
 
+  async getCharts(category = 'trending'): Promise<{
+    category: string;
+    total: number;
+    tracks: Song[];
+  }> {
+    const res = await fetch(apiUrl(`/api/charts?category=${encodeURIComponent(category)}`));
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load charts');
+    return data;
+  },
+
+  async getTrackDetails(youtubeId: string): Promise<{
+    id: string;
+    youtubeId: string;
+    coverUrl?: string;
+    streamUrl?: string;
+    embedUrl?: string;
+  }> {
+    const res = await fetch(apiUrl(`/api/track/${encodeURIComponent(youtubeId)}`));
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to load track details');
+    return data.track;
+  },
+
+  async importPlaylist(url: string): Promise<{
+    id: string;
+    title: string;
+    description: string;
+    owner: string;
+    coverImage: string;
+    totalTracks: number;
+    resolvedSongs: Song[];
+  }> {
+    const res = await fetch(apiUrl('/api/playlist/import'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to import playlist');
+    }
+    return data.data;
+  },
+
   async importSpotifyPlaylist(url: string): Promise<{
     id: string;
     title: string;
@@ -104,16 +171,7 @@ export const api = {
     totalTracks: number;
     resolvedSongs: Song[];
   }> {
-    const res = await fetch(apiUrl('/api/spotify/import'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    const data = await res.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to import Spotify playlist');
-    }
-    return data.data;
+    return this.importPlaylist(url);
   },
 
   async generateAIDJMix(prompt: string, currentSong?: string): Promise<AIDJMix> {

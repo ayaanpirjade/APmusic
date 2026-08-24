@@ -27,6 +27,15 @@ interface SearchViewProps {
 
 type SearchTab = 'all' | 'songs' | 'albums' | 'artists' | 'playlists';
 
+const CHART_CATEGORIES = [
+  { id: 'trending', label: '🔥 Trending', query: 'Trending' },
+  { id: 'hindi', label: '✨ Top Hindi', query: 'Top Hindi Hits' },
+  { id: 'punjabi', label: '⚡ Punjabi Fire', query: 'Punjabi Top Hits' },
+  { id: 'global', label: '🌍 Global 50', query: 'Global Top Hits' },
+  { id: 'pop', label: '🎧 Pop Charts', query: 'Pop Top Hits' },
+  { id: 'lofi', label: '🌙 Lo-Fi Vibes', query: 'Lo-Fi Chill Beats' },
+];
+
 const GENRE_DISCOVERY = [
   { id: 'pop', name: 'Pop Hits', query: 'Pop Hits 2025', icon: '🎧', color: 'from-pink-500/30 to-purple-600/40 border-pink-500/30 text-pink-200' },
   { id: 'hiphop', name: 'Hip-Hop', query: 'Hip Hop Rap Beats', icon: '🔥', color: 'from-amber-500/30 to-orange-600/40 border-amber-500/30 text-amber-200' },
@@ -189,6 +198,25 @@ export const SearchView: React.FC<SearchViewProps> = ({
       {/* Default Discovery View when no query is typed */}
       {!hasSearched && !isLoading && (
         <div className="space-y-7 animate-in fade-in duration-300">
+          {/* Top Charts & Live Trends */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+              <span>Live Top Charts</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {CHART_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleQuickTagClick(cat.query)}
+                  className="px-3.5 py-1.5 rounded-xl glass-card hover:bg-white/20 text-xs font-bold text-white border border-white/20 transition-all hover:scale-105 shadow-md shadow-black/20"
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Recently Searched Tags */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -300,7 +328,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                       className="w-full aspect-square rounded-xl object-cover mb-2"
                     />
                     <h4 className="text-xs font-bold text-white truncate">{album.name}</h4>
-                    <p className="text-[11px] text-slate-400 truncate">{album.artist || 'Album'}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{album.primaryArtists || (album as any).artist || 'Album'}</p>
                   </div>
                 ))}
               </div>

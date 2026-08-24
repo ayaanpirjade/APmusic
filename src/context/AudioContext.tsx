@@ -278,24 +278,31 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [volume, isMuted]);
 
+  // Check if string is a direct audio stream URL and not a webpage
+  const isDirectAudio = (url?: string): boolean =>
+    Boolean(url && typeof url === 'string' && !url.includes('youtube.com/watch') && !url.includes('youtu.be/'));
+
   // Resolve best play URL based on quality preference
   const resolvePlayUrl = (song: Song, quality: AudioQualitySetting): string => {
     if (!song) return '';
     if (song.downloadUrl && song.downloadUrl.length > 0) {
-      const qTarget = quality.replace('kbps', '');
-      const match = song.downloadUrl.find((d) => d.quality && d.quality.includes(qTarget));
-      if (match && match.url) return match.url;
+      const validDownloads = song.downloadUrl.filter((d) => isDirectAudio(d.url));
+      if (validDownloads.length > 0) {
+        const qTarget = quality.replace('kbps', '');
+        const match = validDownloads.find((d) => d.quality && d.quality.includes(qTarget));
+        if (match && match.url) return match.url;
 
-      // Quality priority: 320 -> 160 -> 96 -> 48 -> 12
-      const preferred =
-        song.downloadUrl.find((d) => d.quality?.includes('320'))?.url ||
-        song.downloadUrl.find((d) => d.quality?.includes('160'))?.url ||
-        song.downloadUrl.find((d) => d.quality?.includes('96'))?.url ||
-        song.downloadUrl[song.downloadUrl.length - 1]?.url ||
-        song.downloadUrl[0]?.url;
-      if (preferred) return preferred;
+        // Quality priority: 320 -> 160 -> 96 -> 48 -> 12
+        const preferred =
+          validDownloads.find((d) => d.quality?.includes('320'))?.url ||
+          validDownloads.find((d) => d.quality?.includes('160'))?.url ||
+          validDownloads.find((d) => d.quality?.includes('96'))?.url ||
+          validDownloads[validDownloads.length - 1]?.url ||
+          validDownloads[0]?.url;
+        if (preferred) return preferred;
+      }
     }
-    if (song.playUrl) {
+    if (song.playUrl && isDirectAudio(song.playUrl)) {
       if (quality === '320kbps') return song.playUrl.replace(/_(96|160|48)\./, '_320.');
       if (quality === '160kbps') return song.playUrl.replace(/_(96|320|48)\./, '_160.');
       if (quality === '96kbps') return song.playUrl.replace(/_(160|320|48)\./, '_96.');
@@ -363,27 +370,26 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let activeSong = { ...song };
       let playUrl = resolvePlayUrl(activeSong, audioQuality);
 
-      // If URL is missing (e.g. from autocomplete or external import), hydrate in background
-      if (!playUrl) {
+      // If URL is missing or not a direct audio file, hydrate via backend audio stream resolver
+      if (!playUrl || !isDirectAudio(playUrl)) {
         try {
           if (song.id) {
-            const details = await api.getSongDetails(song.id);
+            const details = await api.getSongDetails(song.id, song.name, song.primaryArtists);
             if (details && (details.playUrl || (details.downloadUrl && details.downloadUrl.length > 0))) {
               activeSong = { ...song, ...details };
               playUrl = resolvePlayUrl(activeSong, audioQuality);
             }
           }
 
-          if (!playUrl && song.name) {
-            const searchResults = await api.searchSongs(`${song.name} ${song.primaryArtists || ''}`.trim(), 1, 3);
-            if (searchResults && searchResults.length > 0) {
-              const bestMatch = searchResults[0];
+          if (!playUrl || !isDirectAudio(playUrl)) {
+            const streamRes = await api.resolveAudioStream(song.id, song.name, song.primaryArtists);
+            if (streamRes && streamRes.playUrl) {
               activeSong = {
-                ...song,
-                ...bestMatch,
-                id: song.id || bestMatch.id,
+                ...activeSong,
+                playUrl: streamRes.playUrl,
+                downloadUrl: streamRes.downloadUrl,
               };
-              playUrl = resolvePlayUrl(activeSong, audioQuality);
+              playUrl = streamRes.playUrl;
             }
           }
         } catch (fetchErr) {
@@ -391,13 +397,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      playUrl = toStreamProxyUrl(playUrl);
-
       if (!playUrl) {
         console.error('No playable URL for song:', song.name);
         setIsLoadingSong(false);
         return;
       }
+
+      const proxiedUrl = toStreamProxyUrl(playUrl);
 
       // Update current state with resolved active song
       setCurrentSong(activeSong);
@@ -409,13 +415,24 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       );
 
       if (audioRef.current) {
-        audioRef.current.src = playUrl;
+        audioRef.current.src = proxiedUrl;
         audioRef.current
           .play()
           .then(() => setIsPlaying(true))
           .catch((err) => {
-            console.warn('Audio play request interrupted or blocked:', err);
-            setIsPlaying(false);
+            console.warn('Proxy audio play failed, trying direct stream URL:', err);
+            if (audioRef.current && playUrl) {
+              audioRef.current.src = playUrl;
+              audioRef.current
+                .play()
+                .then(() => setIsPlaying(true))
+                .catch((directErr) => {
+                  console.warn('Direct stream also blocked or interrupted:', directErr);
+                  setIsPlaying(false);
+                });
+            } else {
+              setIsPlaying(false);
+            }
           });
       }
 

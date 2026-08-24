@@ -425,6 +425,16 @@ export async function searchAll(query: string): Promise<{
 export async function getSongById(id: string): Promise<SaavnSong | null> {
   if (!id) return null;
 
+  // If this is a YouTube track from the Primary API
+  if (id.startsWith('yt_') || id.startsWith('yt-')) {
+    try {
+      const cleanQuery = id.replace(/^yt_|^yt-/, '');
+      const resolved = await resolveFallenTrack(cleanQuery);
+      if (resolved) return resolved;
+    } catch (_) {}
+    return null;
+  }
+
   // If this is a fallen fallback song id
   if (id.startsWith('fallen_')) {
     try {
@@ -434,37 +444,43 @@ export async function getSongById(id: string): Promise<SaavnSong | null> {
     } catch (err) {
       console.warn('getSongById fallen prefix resolution error:', err);
     }
+    return null;
   }
 
-  // Try Dev Anand Worker API first
-  try {
-    const workerRes = await fetchWorker(`/api/songs/${id}`);
-    if (workerRes.success && Array.isArray(workerRes.data) && workerRes.data.length > 0) {
-      const song = formatWorkerSongPayload(workerRes.data[0]);
-      if (song.playUrl || (song.downloadUrl && song.downloadUrl.length > 0)) {
-        return song;
-      }
-    }
-  } catch (err) {
-    console.warn(`Worker getSongById(${id}) error:`, err);
-  }
+  // Only query worker/Jio if id looks like a standard Saavn ID (alphanumeric, e.g. 5-15 chars, not containing special URL tokens)
+  const isLikelySaavnId = /^[a-zA-Z0-9_-]{5,24}$/.test(id) && !id.includes(' ');
 
-  // Fallback to JioSaavn
-  try {
-    const data = await fetchJio({
-      __call: 'song.getDetails',
-      pids: id,
-    });
-
-    const songData = data[id] || (data.songs && data.songs[0]) || Object.values(data)[0];
-    if (songData) {
-      const formatted = formatSongPayload(songData);
-      if (formatted.playUrl || (formatted.downloadUrl && formatted.downloadUrl.length > 0)) {
-        return formatted;
+  if (isLikelySaavnId) {
+    // Try Dev Anand Worker API first
+    try {
+      const workerRes = await fetchWorker(`/api/songs/${id}`);
+      if (workerRes.success && Array.isArray(workerRes.data) && workerRes.data.length > 0) {
+        const song = formatWorkerSongPayload(workerRes.data[0]);
+        if (song.playUrl || (song.downloadUrl && song.downloadUrl.length > 0)) {
+          return song;
+        }
       }
+    } catch (_) {
+      // Worker didn't have track, proceed to JioSaavn
     }
-  } catch (err) {
-    console.error(`getSongById(${id}) error:`, err);
+
+    // Fallback to JioSaavn
+    try {
+      const data = await fetchJio({
+        __call: 'song.getDetails',
+        pids: id,
+      });
+
+      const songData = data[id] || (data.songs && data.songs[0]) || Object.values(data)[0];
+      if (songData) {
+        const formatted = formatSongPayload(songData);
+        if (formatted.playUrl || (formatted.downloadUrl && formatted.downloadUrl.length > 0)) {
+          return formatted;
+        }
+      }
+    } catch (err) {
+      console.error(`getSongById(${id}) error:`, err);
+    }
   }
 
   // Fallback to search by id/title
@@ -487,6 +503,13 @@ export async function getSongById(id: string): Promise<SaavnSong | null> {
 }
 
 export async function getSongSuggestions(id: string, limit = 15): Promise<SaavnSong[]> {
+  if (!id) return [];
+
+  // If this is a YouTube ID or custom ID, JioSaavn recommendations won't match PID directly
+  if (id.startsWith('yt_') || id.startsWith('yt-') || id.startsWith('fallen_')) {
+    return [];
+  }
+
   try {
     const data = await fetchJio({
       __call: 'reco.getrecos',
@@ -497,7 +520,6 @@ export async function getSongSuggestions(id: string, limit = 15): Promise<SaavnS
     const items = Array.isArray(data) ? data : data.results || [];
     return items.map((r: any) => formatSongPayload(r));
   } catch (err) {
-    console.error(`getSongSuggestions(${id}) error:`, err);
     return [];
   }
 }
