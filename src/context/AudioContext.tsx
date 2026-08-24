@@ -104,6 +104,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const youtubePlayerRef = useRef<any>(null);
+  const youtubePlayerReadyRef = useRef(false);
   const youtubeReadyPromiseRef = useRef<Promise<any> | null>(null);
   const youtubeVideoIdRef = useRef('');
   const youtubeProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -169,6 +170,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       youtubeProgressTimerRef.current = null;
       youtubePlayerRef.current?.destroy?.();
       youtubePlayerRef.current = null;
+      youtubePlayerReadyRef.current = false;
+      youtubeReadyPromiseRef.current = null;
       document.getElementById('apmusic-youtube-player')?.remove();
     };
   }, []);
@@ -198,7 +201,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const ensureYoutubePlayer = useCallback(async (initialVideoId = ''): Promise<any> => {
-    if (youtubePlayerRef.current) return youtubePlayerRef.current;
+    if (youtubePlayerReadyRef.current && youtubePlayerRef.current) return youtubePlayerRef.current;
     if (youtubeReadyPromiseRef.current) return youtubeReadyPromiseRef.current;
 
     youtubeReadyPromiseRef.current = new Promise((resolve, reject) => {
@@ -220,6 +223,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             document.body.appendChild(host);
           }
+          youtubePlayerReadyRef.current = false;
           const player = new (window as any).YT.Player(host, {
             width: '320',
             height: '180',
@@ -237,6 +241,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             events: {
               onReady: (event: any) => {
                 youtubePlayerRef.current = event.target;
+                youtubePlayerReadyRef.current = true;
                 (window as any).__APMUSIC_YT_PLAYER__ = event.target;
                 const iframe = host?.querySelector('iframe') as HTMLIFrameElement | null;
                 iframe?.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
@@ -319,18 +324,19 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setDuration(0);
     setIsLoadingSong(true);
 
-    // The preloaded player is used synchronously when available so the tap on
-    // the custom Play control remains the browser's user activation.
-    const readyPlayer = youtubePlayerRef.current;
+    // Only the onReady player is usable. The constructor object exists before
+    // YouTube finishes initializing and silently ignores playback commands.
+    const readyPlayer = youtubePlayerReadyRef.current ? youtubePlayerRef.current : null;
     const player = readyPlayer || await ensureYoutubePlayer(youtubeId);
+    if (!player || !youtubePlayerReadyRef.current) {
+      setIsLoadingSong(false);
+      setIsPlaying(false);
+      return;
+    }
     player.loadVideoById({ videoId: youtubeId, startSeconds: 0 });
     player.setVolume(Math.round((isMuted ? 0 : volume) * 100));
     player.unMute?.();
-    if (readyPlayer) {
-      player.playVideo?.();
-    } else {
-      window.setTimeout(() => player.playVideo?.(), 150);
-    }
+    player.playVideo?.();
     if (youtubeProgressTimerRef.current) clearInterval(youtubeProgressTimerRef.current);
     youtubeProgressTimerRef.current = setInterval(() => {
       try {
@@ -340,8 +346,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 250);
   }, [ensureYoutubePlayer, isMuted, volume]);
 
-  const pauseYoutubeVideo = () => youtubePlayerRef.current?.pauseVideo?.();
-  const resumeYoutubeVideo = () => youtubePlayerRef.current?.playVideo?.();
+  const pauseYoutubeVideo = () => {
+    if (youtubePlayerReadyRef.current) youtubePlayerRef.current?.pauseVideo?.();
+  };
+  const resumeYoutubeVideo = async () => {
+    const player = youtubePlayerReadyRef.current
+      ? youtubePlayerRef.current
+      : await ensureYoutubePlayer(youtubeVideoIdRef.current);
+    if (player && youtubePlayerReadyRef.current) player.playVideo?.();
+  };
 
   // Initialize Web Audio API graph
   const initWebAudio = () => {
