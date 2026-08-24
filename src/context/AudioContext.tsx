@@ -208,18 +208,24 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             width: '320',
             height: '180',
             videoId: initialVideoId,
-            playerVars: {
-              autoplay: 1,
-              controls: 0,
-              disablekb: 1,
-              playsinline: 1,
-              rel: 0,
-              origin: window.location.origin,
-            },
+              host: 'https://www.youtube.com',
+              playerVars: {
+                autoplay: 0,
+                controls: 0,
+                disablekb: 1,
+                playsinline: 1,
+                rel: 0,
+                origin: window.location.origin,
+                widget_referrer: window.location.href,
+              },
             events: {
               onReady: (event: any) => {
                 youtubePlayerRef.current = event.target;
                 (window as any).__APMUSIC_YT_PLAYER__ = event.target;
+                const iframe = host?.querySelector('iframe') as HTMLIFrameElement | null;
+                iframe?.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+                iframe?.setAttribute('allowfullscreen', 'true');
+                iframe?.setAttribute('title', 'APMUSIC official audio player');
                 event.target.setVolume(Math.round((isMuted ? 0 : volume) * 100));
                 if (initialVideoId) event.target.playVideo?.();
                 resolve(event.target);
@@ -283,15 +289,32 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return youtubeReadyPromiseRef.current;
   }, [isMuted, volume]);
 
+  // Load the official player before the user selects a track so the later
+  // Play gesture is not delayed by script initialization or provider calls.
+  useEffect(() => {
+    void ensureYoutubePlayer().catch((error) => {
+      console.warn('YouTube player preload failed:', error);
+    });
+  }, [ensureYoutubePlayer]);
+
   const playYoutubeVideo = useCallback(async (youtubeId: string) => {
     youtubeVideoIdRef.current = youtubeId;
-    const player = await ensureYoutubePlayer(youtubeId);
     setCurrentTime(0);
     setDuration(0);
     setIsLoadingSong(true);
+
+    // The preloaded player is used synchronously when available so the tap on
+    // the custom Play control remains the browser's user activation.
+    const readyPlayer = youtubePlayerRef.current;
+    const player = readyPlayer || await ensureYoutubePlayer(youtubeId);
     player.loadVideoById({ videoId: youtubeId, startSeconds: 0 });
     player.setVolume(Math.round((isMuted ? 0 : volume) * 100));
-    window.setTimeout(() => player.playVideo?.(), 150);
+    player.unMute?.();
+    if (readyPlayer) {
+      player.playVideo?.();
+    } else {
+      window.setTimeout(() => player.playVideo?.(), 150);
+    }
     if (youtubeProgressTimerRef.current) clearInterval(youtubeProgressTimerRef.current);
     youtubeProgressTimerRef.current = setInterval(() => {
       try {
@@ -517,9 +540,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let embedUrl = activeSong.embedUrl || '';
       let youtubeId = extractYoutubeId(activeSong);
 
-      // If URL is missing or not a direct audio file, hydrate via backend audio stream resolver.
-      // Ignore late responses when the user has already selected another song.
-      if (!playUrl || !isDirectAudio(playUrl)) {
+      // Latest Spotify search results already carry the exact YouTube ID. Start
+      // that ID immediately; waiting for a detail/resolver request loses the
+      // browser user gesture and can also overwrite the selected identity.
+      // Only hydrate when neither a direct file nor an exact ID is present.
+      if (!playUrl && !youtubeId) {
         try {
           if (song.id) {
             const details = await api.getSongDetails(song.id, song.name, song.primaryArtists);
@@ -531,7 +556,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           }
 
-          if (!playUrl || !isDirectAudio(playUrl)) {
+          if (!playUrl && !youtubeId) {
             const streamRes = await api.resolveAudioStream(song.id, song.name, song.primaryArtists);
             if (streamRes && (streamRes.playUrl || streamRes.embedUrl)) {
               activeSong = {
@@ -557,15 +582,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (!isLatestRequest()) return;
 
-      playUrl = isDirectAudio(playUrl) ? toStreamProxyUrl(playUrl) : '';
+      const rawPlayUrl = isDirectAudio(playUrl) ? playUrl : '';
+      const proxiedUrl = rawPlayUrl ? toStreamProxyUrl(rawPlayUrl) : '';
+      playUrl = rawPlayUrl;
       youtubeId = youtubeId || extractYoutubeId({ ...activeSong, embedUrl });
       if (!playUrl && !youtubeId) {
         console.error('Spotify Primary API returned no playable track identity:', song.name);
         setIsLoadingSong(false);
         return;
       }
-
-      const proxiedUrl = playUrl ? toStreamProxyUrl(playUrl) : '';
 
       // Update current state with resolved active song only if this is still the latest click.
       if (!isLatestRequest()) return;
@@ -579,7 +604,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         )
       );
 
-      if (playUrl && audioRef.current) {
+      if (rawPlayUrl && audioRef.current) {
         pauseYoutubeVideo();
         audioRef.current.pause();
         audioRef.current.src = proxiedUrl;

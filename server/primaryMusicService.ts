@@ -126,7 +126,11 @@ function cleanYoutubeId(value?: string): string {
 }
 
 function isDirectAudio(url?: string): boolean {
-  return Boolean(url && !/youtube\.com|youtu\.be/i.test(url));
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  if (/youtube\.com|youtu\.be/i.test(url)) return false;
+  if (/spotify-production-3caa\.up\.railway\.app\/api\/stream/i.test(url)) return false;
+  return /\.(?:mp3|m4a|webm|aac|ogg|wav)(?:$|[?#])/i.test(url)
+    || /(?:googlevideo\.com\/videoplayback|[?&](?:mime|type)=audio)/i.test(url);
 }
 
 function youtubeEmbedUrl(youtubeId?: string, explicit?: string): string {
@@ -235,6 +239,52 @@ export async function getPrimaryTrackDetails(youtubeId: string): Promise<Primary
  * YouTube stream/embed identity; if it later returns a direct file, it is
  * accepted here. No legacy catalog or fallback provider is queried.
  */
+interface RailwayStreamResponse {
+  video_id?: string;
+  best_audio_url?: string;
+  formats?: Array<{
+    url?: string;
+    quality?: string | number;
+    bitrate?: string | number;
+    audioBitrate?: string | number;
+    mimeType?: string;
+    mime_type?: string;
+  }>;
+}
+
+async function resolveRailwayAudio(streamUrl: string): Promise<{ playUrl: string; downloadUrl: { quality: string; url: string }[] } | null> {
+  try {
+    const response = await fetch(streamUrl, {
+      headers: { Accept: 'application/json', 'User-Agent': 'APMUSIC-Spotify-Primary/3.0' },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as RailwayStreamResponse;
+    const formats = Array.isArray(payload.formats) ? payload.formats : [];
+    const candidates = formats
+      .filter((format) => {
+        const url = format.url || '';
+        const mime = format.mimeType || format.mime_type || '';
+        return Boolean(url) && (String(mime).toLowerCase().startsWith('audio/') || isDirectAudio(url));
+      })
+      .sort((a, b) => Number(b.bitrate || b.audioBitrate || 0) - Number(a.bitrate || a.audioBitrate || 0));
+    const best = candidates[0] || (payload.best_audio_url && isDirectAudio(payload.best_audio_url)
+      ? { url: payload.best_audio_url, quality: 'best' }
+      : null);
+    if (!best?.url) return null;
+    return {
+      playUrl: best.url,
+      downloadUrl: candidates.map((format) => ({
+        quality: String(format.quality || format.bitrate || format.audioBitrate || 'audio'),
+        url: format.url || '',
+      })).filter((format) => format.url),
+    };
+  } catch (error: any) {
+    console.warn('Spotify Primary Railway audio resolver unavailable:', error?.message || error);
+    return null;
+  }
+}
+
 export async function resolveTrackAudioStream(
   _title: string,
   _artist = '',
@@ -242,10 +292,18 @@ export async function resolveTrackAudioStream(
 ): Promise<{ playUrl: string; downloadUrl: { quality: string; url: string }[]; embedUrl?: string } | null> {
   const track = await getPrimaryTrackDetails(youtubeId);
   if (!track) return null;
-  const directUrl = isDirectAudio(track.streamUrl) ? track.streamUrl || '' : '';
+
+  const resolvedYoutubeId = cleanYoutubeId(track.youtubeId || youtubeId);
+  let resolvedAudio: { playUrl: string; downloadUrl: { quality: string; url: string }[] } | null = null;
+  if (isDirectAudio(track.streamUrl)) {
+    resolvedAudio = { playUrl: track.streamUrl || '', downloadUrl: [] };
+  } else if (track.streamUrl && /spotify-production-3caa\.up\.railway\.app\/api\/stream/i.test(track.streamUrl)) {
+    resolvedAudio = await resolveRailwayAudio(track.streamUrl);
+  }
+
   return {
-    playUrl: directUrl,
-    downloadUrl: [],
-    embedUrl: youtubeEmbedUrl(track.youtubeId || youtubeId, track.embedUrl),
+    playUrl: resolvedAudio?.playUrl || '',
+    downloadUrl: resolvedAudio?.downloadUrl || [],
+    embedUrl: youtubeEmbedUrl(resolvedYoutubeId || youtubeId, track.embedUrl),
   };
 }
