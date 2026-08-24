@@ -1,5 +1,5 @@
 const ONEGRAB_BASE = 'https://api.onegrab.fun';
-const ONEGRAB_API_KEY = process.env.ONEGRAB_API_KEY || '';
+const ONEGRAB_API_KEY = (process.env.ONEGRAB_API_KEY || '').trim();
 
 type OneGrabResult = {
   channel?: string;
@@ -31,7 +31,7 @@ async function onegrabRequest<T>(path: string, params: Record<string, string>): 
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
   const response = await fetch(url, {
     headers: {
-      'X-API-Key': ONEGRAB_API_KEY,
+      'X-API-Key': ONEGRAB_API_KEY.trim(),
       Accept: 'application/json',
     },
     signal: AbortSignal.timeout(12000),
@@ -40,11 +40,23 @@ async function onegrabRequest<T>(path: string, params: Record<string, string>): 
   return (await response.json()) as T;
 }
 
-function toSong(item: OneGrabResult, index: number) {
+async function toSong(item: OneGrabResult, index: number) {
   const title = clean(item.title) || 'Untitled Track';
   const artist = clean(item.channel) || 'OneGrab Music';
-  const mediaUrl = normalizeUrl(item.url);
-  if (!mediaUrl || !isUsableMediaUrl(mediaUrl)) return null;
+  const sourceUrl = normalizeUrl(item.url);
+  if (!sourceUrl) return null;
+
+  let mediaUrl = isUsableMediaUrl(sourceUrl) ? sourceUrl : '';
+  try {
+    const track = await onegrabRequest<{ id?: string; url?: string; cdnurl?: string }>('/api/track', {
+      url: sourceUrl,
+      video: 'true',
+    });
+    mediaUrl = normalizeUrl(track?.cdnurl) || mediaUrl;
+  } catch (error) {
+    console.warn('OneGrab track resolution failed:', error instanceof Error ? error.message : 'unknown error');
+  }
+  if (!isUsableMediaUrl(mediaUrl)) return null;
   const thumbnail = normalizeUrl(item.thumbnail);
   const id = `onegrab-${clean(item.id) || `${Date.now()}-${index}`}`;
   const imageUrl = thumbnail || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
@@ -82,9 +94,10 @@ export async function searchOneGrabSongs(query: string, limit = 10): Promise<any
       platform: 'youtube',
       limit: String(Math.min(Math.max(limit, 1), 10)),
     });
-    return (payload?.results || [])
-      .map(toSong)
-      .filter(Boolean);
+    const resolved = await Promise.all(
+      (payload?.results || []).slice(0, 5).map((item, index) => toSong(item, index))
+    );
+    return resolved.filter(Boolean);
   } catch (error) {
     console.error('OneGrab fallback search error:', error);
     return [];
