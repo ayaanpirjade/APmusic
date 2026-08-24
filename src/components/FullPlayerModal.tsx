@@ -94,6 +94,12 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
 
+  const renderedLyricLines = lyricsData?.syncedLyrics?.length
+    ? lyricsData.syncedLyrics
+    : lyricsData?.lyrics
+      ? lyricsData.lyrics.split(/\r?\n/).map((text) => ({ text, time: undefined }))
+      : [];
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -106,6 +112,14 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
       }
     }
   }, [isOpen, initialTab, currentSong]);
+
+  // Fetch lyrics whenever the user opens the Lyrics tab, including when the
+  // modal was opened on the Cover tab first.
+  useEffect(() => {
+    if (isOpen && activeTab === 'lyrics' && currentSong && !lyricsData && !isLoadingLyrics) {
+      fetchLyrics(currentSong);
+    }
+  }, [isOpen, activeTab, currentSong, lyricsData, isLoadingLyrics, fetchLyrics]);
 
   // Auto-scroll lyrics to active line
   useEffect(() => {
@@ -330,8 +344,8 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
                 <div className="w-8 h-8 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                 <p className="text-xs text-slate-400 font-semibold">Synchronizing Studio Lyrics...</p>
               </div>
-            ) : lyricsData && lyricsData.lines && lyricsData.lines.length > 0 ? (
-              lyricsData.lines.map((line, idx) => {
+            ) : renderedLyricLines.length > 0 ? (
+              renderedLyricLines.map((line, idx) => {
                 const isActive = currentLyricIndex === idx;
                 return (
                   <p
@@ -344,7 +358,7 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
                         : 'text-base sm:text-lg text-slate-500 hover:text-slate-300'
                     }`}
                   >
-                    {line.words || '...'}
+                    {line.text || '...'}
                   </p>
                 );
               })

@@ -10,8 +10,8 @@ import {
   getPlaylistDetails,
   getAlbumDetails,
   getArtistDetails,
-  getLyrics,
 } from './server/spotifyOnlyService.js';
+import { getLyrics } from './server/lyricsService.js';
 import { generateAIDJMix } from './server/aiService.js';
 import {
   searchPrimarySongs,
