@@ -14,6 +14,7 @@ import {
 } from './server/saavnService.js';
 import { parseSpotifyUrl } from './server/spotifyService.js';
 import { generateAIDJMix } from './server/aiService.js';
+import { isOneGrabConfigured, searchOneGrabSongs } from './server/onegrabService.js';
 
 dotenv.config();
 
@@ -66,13 +67,22 @@ function createApp() {
         return res.json({ success: true, data: { results: [], total: 0 } });
       }
 
-      const results = await searchSongs(query, page, limit);
+      let results = await searchSongs(query, page, limit);
+      let source: 'saavn' | 'onegrab' = 'saavn';
+
+      if (results.length === 0 && isOneGrabConfigured()) {
+        results = await searchOneGrabSongs(query, Math.min(limit, 10));
+        source = results.length > 0 ? 'onegrab' : 'saavn';
+      }
+
       res.json({
         success: true,
         data: {
           results,
           total: results.length,
           page,
+          source,
+          fallbackUsed: source === 'onegrab',
         },
       });
     } catch (err: any) {
