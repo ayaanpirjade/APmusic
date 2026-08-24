@@ -2,10 +2,7 @@ import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml, searchSon
 import { resolveFallenTrack, searchFallenFallbackSongs } from './fallenService.js';
 
 const PRIMARY_API_BASE = 'https://spotify-theta-ten.vercel.app/api/v1';
-const DEFAULT_API_KEY = 'ayaan-randi-321';
-const PRIMARY_API_KEY = (process.env.MUSIC_API_KEY && process.env.MUSIC_API_KEY.trim() && process.env.MUSIC_API_KEY !== 'friend_api_key_demo')
-  ? process.env.MUSIC_API_KEY.trim()
-  : DEFAULT_API_KEY;
+const PRIMARY_API_KEY = (process.env.MUSIC_API_KEY || '').trim();
 
 export interface PrimaryTrack {
   id: string;
@@ -77,16 +74,6 @@ async function fetchPrimaryApi<T>(endpoint: string, options: RequestInit = {}): 
     });
 
     if (!res.ok) {
-      if ((res.status === 401 || res.status === 403) && PRIMARY_API_KEY !== DEFAULT_API_KEY) {
-        const fallbackRes = await fetch(url, {
-          ...options,
-          headers: { ...headers, 'x-api-key': DEFAULT_API_KEY },
-          signal: AbortSignal.timeout(12000),
-        });
-        if (fallbackRes.ok) {
-          return (await fallbackRes.json()) as T;
-        }
-      }
       return null;
     }
 
