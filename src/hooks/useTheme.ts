@@ -13,6 +13,13 @@ export interface UseThemeReturn {
 
 const STORAGE_KEY = 'apmusic_theme_preference';
 
+function isNativeApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.protocol === 'capacitor:'
+    || window.location.hostname === 'localhost'
+    || Boolean((window as any).Capacitor?.isNativePlatform?.());
+}
+
 export function useSystemTheme(): UseThemeReturn {
   // 1. Get initial system preference
   const getSystemTheme = (): ResolvedTheme => {
@@ -22,6 +29,7 @@ export function useSystemTheme(): UseThemeReturn {
 
   // 2. Load stored preference (defaults to 'system')
   const [theme, setThemeState] = useState<ThemeMode>(() => {
+    if (isNativeApp()) return 'dark';
     if (typeof window === 'undefined') return 'system';
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'dark' || stored === 'light' || stored === 'system') {
@@ -57,7 +65,11 @@ export function useSystemTheme(): UseThemeReturn {
   }, []);
 
   // 4. Calculate active resolved theme
-  const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme;
+  const resolvedTheme: ResolvedTheme = isNativeApp()
+    ? 'dark'
+    : theme === 'system'
+      ? systemTheme
+      : theme;
 
   // 5. Apply theme classes & attributes to document
   useEffect(() => {
@@ -84,9 +96,10 @@ export function useSystemTheme(): UseThemeReturn {
 
   // 6. User setter
   const setTheme = useCallback((newTheme: ThemeMode) => {
-    setThemeState(newTheme);
+    const nextTheme: ThemeMode = isNativeApp() ? 'dark' : newTheme;
+    setThemeState(nextTheme);
     try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      localStorage.setItem(STORAGE_KEY, nextTheme);
     } catch (e) {
       // ignore storage errors
     }
@@ -94,6 +107,13 @@ export function useSystemTheme(): UseThemeReturn {
 
   // 7. Toggle between light / dark / system
   const toggleTheme = useCallback(() => {
+    if (isNativeApp()) {
+      setThemeState('dark');
+      try {
+        localStorage.setItem(STORAGE_KEY, 'dark');
+      } catch (e) {}
+      return;
+    }
     setThemeState((prev) => {
       let next: ThemeMode;
       if (prev === 'system') next = 'light';

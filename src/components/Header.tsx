@@ -47,6 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
   const { theme, systemTheme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const isNativeApp = typeof document !== 'undefined'
+    && document.documentElement.classList.contains('capacitor-native');
 
   const qualities: Array<{ id: AudioQualitySetting; label: string; desc: string }> = [
     { id: '320kbps', label: 'Extreme 320 kbps', desc: 'Ultra Hi-Res Lossless Audio' },
@@ -121,8 +123,8 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden lg:inline">Import Spotify</span>
           </button>
 
-          {/* System OS Theme Switcher Menu */}
-          <div className="relative">
+          {/* System OS Theme Switcher Menu — website only; APK is dark-only */}
+          {!isNativeApp && <div className="relative">
             <button
               onClick={() => setShowThemeMenu((prev) => !prev)}
               className="p-2 rounded-2xl ios-glass-pill hover:bg-white/15 text-slate-300 hover:text-white transition-colors"
@@ -201,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Audio Quality Badge Dropdown */}
           <div className="relative">

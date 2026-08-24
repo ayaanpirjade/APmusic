@@ -3,8 +3,8 @@ import {
   Sliders,
   Volume2,
   Moon,
-  Clock,
   Sparkles,
+  Clock,
   ShieldCheck,
   HardDrive,
   Trash2,
@@ -17,9 +17,9 @@ import {
   Disc3,
   Layers,
   Activity,
+  Palette,
   ArrowDownToLine,
   User,
-  Palette,
 } from 'lucide-react';
 import { AudioQualitySetting } from '../types';
 import { useAudio } from '../context/AudioContext';
@@ -51,7 +51,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   } = useAudio();
 
   const { user, loginWithGoogle, logout, downloadedSongs } = useAuth();
-  const { theme, setTheme, resolvedTheme } = useAppTheme();
+  const { theme, setTheme } = useAppTheme();
+  const isNativeApp = typeof document !== 'undefined'
+    && document.documentElement.classList.contains('capacitor-native');
 
   const [gapless, setGapless] = useState(true);
   const [crossfade, setCrossfade] = useState<'off' | '3s' | '5s'>('3s');
@@ -317,51 +319,50 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* 5. Appearance */}
-      <section className="p-5 sm:p-6 rounded-[28px] glass-card border border-white/20 space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-          <Palette className="w-4 h-4 text-pink-400" />
-          <h3 className="text-base font-bold text-white">Appearance & Theme</h3>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <button
-            onClick={() => setTheme('dark')}
-            className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
-              theme === 'dark'
-                ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-950/60'
-                : 'glass-card border-white/10 text-slate-300'
-            }`}
-          >
-            <Moon className="w-4 h-4" />
-            <span>Deep Night</span>
-          </button>
-
-          <button
-            onClick={() => setTheme('light')}
-            className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
-              theme === 'light'
-                ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
-                : 'glass-card border-white/10 text-slate-300'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Liquid Light</span>
-          </button>
-
-          <button
-            onClick={() => setTheme('system')}
-            className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
-              theme === 'system'
-                ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
-                : 'glass-card border-white/10 text-slate-300'
-            }`}
-          >
-            <Activity className="w-4 h-4" />
-            <span>System Match</span>
-          </button>
-        </div>
-      </section>
+      {/* Website keeps its theme controls; the native APK is dark-only. */}
+      {!isNativeApp && (
+        <section className="p-5 sm:p-6 rounded-[28px] glass-card border border-white/20 space-y-4">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+            <Palette className="w-4 h-4 text-pink-400" />
+            <h3 className="text-base font-bold text-white">Appearance & Theme</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <button
+              onClick={() => setTheme('dark')}
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                theme === 'dark'
+                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-950/60'
+                  : 'glass-card border-white/10 text-slate-300'
+              }`}
+            >
+              <Moon className="w-4 h-4" />
+              <span>Deep Night</span>
+            </button>
+            <button
+              onClick={() => setTheme('light')}
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                theme === 'light'
+                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
+                  : 'glass-card border-white/10 text-slate-300'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Liquid Light</span>
+            </button>
+            <button
+              onClick={() => setTheme('system')}
+              className={`p-3 rounded-2xl border flex items-center justify-center gap-2 font-bold text-xs transition-all ${
+                theme === 'system'
+                  ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
+                  : 'glass-card border-white/10 text-slate-300'
+              }`}
+            >
+              <Activity className="w-4 h-4" />
+              <span>System Match</span>
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 };
