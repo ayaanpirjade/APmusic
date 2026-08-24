@@ -1,57 +1,81 @@
 @import "tailwindcss";
 
 @layer utilities {
-  /* iOS Liquid Glass Card */
+  /* =========================================================
+     APmusic 3-Tier Liquid Glass System (Optimized for Android)
+     Level 1 (Surface)  -> Very subtle translucent foundation
+     Level 2 (Card)     -> Medium blur + smooth specular border
+     Level 3 (Floating) -> Strong blur + glowing neon ambient dock
+     ========================================================= */
+
+  /* Level 1 — Surface */
+  .glass-surface {
+    background: rgba(14, 18, 30, 0.45);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* Level 2 — Card */
+  .glass-card,
+  .ios-glass-card {
+    background: rgba(22, 27, 46, 0.55);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-card:hover,
+  .ios-glass-card:hover {
+    background: rgba(30, 37, 62, 0.7);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+  }
+
+  /* Level 3 — Floating */
+  .glass-floating,
+  .ios-glass-dock,
   .ios-glass {
-    background: rgba(15, 18, 30, 0.65);
+    background: rgba(12, 16, 28, 0.82);
     backdrop-filter: blur(36px) saturate(190%);
     -webkit-backdrop-filter: blur(36px) saturate(190%);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.15);
-  }
-
-  .ios-glass-card {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .ios-glass-card:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.22);
-    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
-    transform: translateY(-3px);
-  }
-
-  .ios-glass-pill {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.2);
   }
 
-  .ios-glass-active {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(168, 85, 247, 0.25) 100%);
-    backdrop-filter: blur(32px);
-    -webkit-backdrop-filter: blur(32px);
-    border: 1px solid rgba(165, 180, 252, 0.4);
-    box-shadow: 0 12px 35px rgba(99, 102, 241, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  /* Interactive Glass Pills & Active items */
+  .ios-glass-pill,
+  .glass-pill {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition: all 0.2s ease;
   }
 
-  .ios-glass-dock {
-    background: rgba(12, 16, 28, 0.78);
-    backdrop-filter: blur(45px) saturate(200%);
-    -webkit-backdrop-filter: blur(45px) saturate(200%);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  .ios-glass-active,
+  .glass-active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(168, 85, 247, 0.3) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(165, 180, 252, 0.45);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.35);
+  }
+
+  /* Android Safe Area Utilities */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 16px);
   }
 }
 
-/* Custom Smooth Audio Sliders */
+/* Custom Smooth Audio Sliders with Neon Glow Thumb */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -60,18 +84,20 @@ input[type="range"] {
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 14px;
-  width: 14px;
+  height: 16px;
+  width: 16px;
   border-radius: 9999px;
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
   cursor: pointer;
-  transition: transform 0.15s ease;
-  margin-top: -5px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  margin-top: -6px;
 }
 
-input[type="range"]:hover::-webkit-slider-thumb {
-  transform: scale(1.3);
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.25);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.95), 0 3px 8px rgba(0, 0, 0, 0.6);
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
@@ -82,8 +108,8 @@ input[type="range"]::-webkit-slider-runnable-track {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -96,148 +122,27 @@ input[type="range"]::-webkit-slider-runnable-track {
   background: rgba(255, 255, 255, 0.35);
 }
 
-/* Smooth fluid transitions */
+/* Hardware accelerated smooth touch behavior */
 * {
   -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
 }
 
-@keyframes float {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-  50% {
-    transform: translate(15px, -20px) scale(1.04);
-  }
-  100% {
-    transform: translate(-10px, 15px) scale(0.98);
-  }
-}
-
-/* Touch/WebView rendering fallback */
-@media (hover: none), (pointer: coarse) {
-  .ios-glass {
-    background: rgba(18, 22, 36, 0.92);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
+/* Smooth Android Safe Rendering (Keep blur crisp) */
+@supports not ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) {
+  .glass-card,
   .ios-glass-card {
-    background: rgba(19, 24, 40, 0.94);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    transform: none !important;
+    background: rgba(18, 22, 38, 0.95) !important;
   }
-
-  .ios-glass-pill,
-  .ios-glass-dock,
-  .ios-glass-active {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .ios-glass-card:hover {
-    background: rgba(19, 24, 40, 0.94);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  .glass-floating,
+  .ios-glass-dock {
+    background: rgba(12, 16, 28, 0.96) !important;
   }
 }
 
-/* Explicit Capacitor fallback for Android WebView */
+/* Android Capacitor Native Shell Optimizations */
 .capacitor-native,
 .capacitor-native body {
   background: #07090e;
-}
-
-.capacitor-native .ios-glass,
-.capacitor-native .ios-glass-card,
-.capacitor-native .ios-glass-pill,
-.capacitor-native .ios-glass-dock,
-.capacitor-native .ios-glass-active {
-  background: #121629 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: none !important;
-  filter: none !important;
-  color: #f8fafc !important;
-}
-
-.capacitor-native .ios-glass-card *,
-.capacitor-native .ios-glass *,
-.capacitor-native .ios-glass-pill *,
-.capacitor-native .ios-glass-dock *,
-.capacitor-native .ios-glass-active * {
-  visibility: visible !important;
-}
-
-.capacitor-native [class*='animate-in'],
-.capacitor-native [class*='fade-in'],
-.capacitor-native [class*='zoom-in'] {
-  animation: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: none !important;
-}
-
-.capacitor-native main {
-  min-height: calc(100vh - 150px);
-  isolation: isolate;
-  color: #f8fafc !important;
-}
-
-.capacitor-native main h1,
-.capacitor-native main h2,
-.capacitor-native main h3,
-.capacitor-native main h4,
-.capacitor-native main span,
-.capacitor-native main label,
-.capacitor-native main button {
-  opacity: 1 !important;
-  visibility: visible !important;
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  text-shadow: 0 0 1px rgba(255, 255, 255, 0.18);
-}
-
-.capacitor-native main p {
-  opacity: 1 !important;
-  visibility: visible !important;
-  color: #cbd5e1 !important;
-  -webkit-text-fill-color: #cbd5e1 !important;
-}
-
-/* Narrow-screen fallback for mobile browsers and Android custom tabs */
-@media (max-width: 768px) {
-  main {
-    isolation: isolate;
-    color: #f8fafc !important;
-  }
-
-  main h1,
-  main h2,
-  main h3,
-  main h4,
-  main span,
-  main label,
-  main button {
-    opacity: 1 !important;
-    visibility: visible !important;
-    -webkit-text-fill-color: currentColor;
-  }
-
-  main p {
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
-
-  .ios-glass,
-  .ios-glass-card,
-  .ios-glass-pill,
-  .ios-glass-dock,
-  .ios-glass-active {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    filter: none !important;
-  }
+  overscroll-behavior-y: none;
 }

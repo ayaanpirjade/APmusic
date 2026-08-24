@@ -92,6 +92,9 @@ function MainLayout() {
               onOpenPlaylist={(pl) => setSelectedPlaylist(pl)}
               onOpenArtist={(art) => setSelectedArtist(art)}
               onOpenAlbum={(alb) => setSelectedAlbum(alb)}
+              onOpenSearch={() => setCurrentTab('search')}
+              onOpenProfile={() => setCurrentTab('settings')}
+              onOpenSoundboard={() => setCurrentTab('soundboard')}
             />
           )}
 
