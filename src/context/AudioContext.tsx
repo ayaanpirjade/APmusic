@@ -194,21 +194,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             host.id = 'apmusic-youtube-player';
             Object.assign(host.style, {
               position: 'fixed',
-              width: '1px',
-              height: '1px',
-              left: '-2px',
-              top: '-2px',
-              opacity: '0',
+              width: '320px',
+              height: '180px',
+              left: '-10000px',
+              top: '0',
+              opacity: '0.01',
               pointerEvents: 'none',
+              zIndex: '-1',
             });
             document.body.appendChild(host);
           }
           const player = new (window as any).YT.Player(host, {
-            width: '1',
-            height: '1',
+            width: '320',
+            height: '180',
             videoId: initialVideoId,
             playerVars: {
-              autoplay: 0,
+              autoplay: 1,
               controls: 0,
               disablekb: 1,
               playsinline: 1,
@@ -218,7 +219,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             events: {
               onReady: (event: any) => {
                 youtubePlayerRef.current = event.target;
+                (window as any).__APMUSIC_YT_PLAYER__ = event.target;
                 event.target.setVolume(Math.round((isMuted ? 0 : volume) * 100));
+                if (initialVideoId) event.target.playVideo?.();
                 resolve(event.target);
               },
               onStateChange: (event: any) => {
@@ -235,7 +238,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   youtubeEndedHandlerRef.current();
                 }
               },
-              onError: () => {
+              onAutoplayBlocked: () => {
+                setIsLoadingSong(false);
+                setIsPlaying(false);
+              },
+              onError: (event: any) => {
+                const hostElement = document.getElementById('apmusic-youtube-player');
+                hostElement?.setAttribute('data-youtube-error', String(event?.data ?? 'unknown'));
                 setIsLoadingSong(false);
                 setIsPlaying(false);
               },
@@ -282,6 +291,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsLoadingSong(true);
     player.loadVideoById({ videoId: youtubeId, startSeconds: 0 });
     player.setVolume(Math.round((isMuted ? 0 : volume) * 100));
+    window.setTimeout(() => player.playVideo?.(), 150);
     if (youtubeProgressTimerRef.current) clearInterval(youtubeProgressTimerRef.current);
     youtubeProgressTimerRef.current = setInterval(() => {
       try {
