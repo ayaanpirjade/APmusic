@@ -18,6 +18,7 @@ import {
   getPrimaryCharts,
   importPrimaryPlaylist,
   getPrimaryTrackDetails,
+  findPrimaryTrackByYoutubeId,
   formatPrimaryTrackToSong,
   resolveTrackAudioStream,
 } from './server/primaryMusicService.js';
@@ -123,11 +124,23 @@ function createApp() {
   // Track Details & Playback Info (Primary API /track/:youtubeId)
   app.get('/api/track/:youtubeId', async (req, res) => {
     try {
-      const track = await getPrimaryTrackDetails(req.params.youtubeId);
-      if (!track) {
+      const [track, metadata] = await Promise.all([
+        getPrimaryTrackDetails(req.params.youtubeId),
+        findPrimaryTrackByYoutubeId(req.params.youtubeId),
+      ]);
+      if (!track && !metadata) {
         return res.status(404).json({ success: false, error: 'Track details not found' });
       }
-      res.json({ success: true, track });
+      res.json({
+        success: true,
+        track: {
+          ...(metadata || {}),
+          ...(track || {}),
+          title: metadata?.title || '',
+          artist: metadata?.artist || '',
+          youtubeId: track?.youtubeId || metadata?.youtubeId || req.params.youtubeId,
+        },
+      });
     } catch (err: any) {
       console.error('/api/track/:youtubeId error:', err);
       res.status(500).json({ success: false, error: err.message });
@@ -159,26 +172,42 @@ function createApp() {
       const queryTitle = (req.query.title as string) || '';
       const queryArtist = (req.query.artist as string) || '';
 
-      // If it is a YouTube track from Primary API
+      // If it is a YouTube track from the Primary API, recover display
+      // metadata by exact youtubeId. Never expose the raw ID as a title.
       if (id.startsWith('yt_') || id.startsWith('yt-')) {
         const ytId = id.replace(/^yt_|^yt-/, '');
-        const track = await getPrimaryTrackDetails(ytId);
-        const resolvedAudio = await resolveTrackAudioStream(queryTitle || track?.id || ytId, queryArtist, ytId);
+        const [track, metadata] = await Promise.all([
+          getPrimaryTrackDetails(ytId),
+          findPrimaryTrackByYoutubeId(ytId),
+        ]);
+        const safeTitle = queryTitle && !/^yt[_-][\w-]{6,}$/i.test(queryTitle.trim())
+          ? queryTitle.trim()
+          : metadata?.title?.trim() || '';
+        const safeArtist = queryArtist && !/^yt[_-][\w-]{6,}$/i.test(queryArtist.trim())
+          ? queryArtist.trim()
+          : metadata?.artist?.trim() || '';
 
+        if (!safeTitle || !safeArtist) {
+          return res.status(404).json({ success: false, error: 'Track display metadata not found for this YouTube ID' });
+        }
+
+        const resolvedAudio = await resolveTrackAudioStream(safeTitle, safeArtist, ytId);
         const song = formatPrimaryTrackToSong({
           id: `yt_${ytId}`,
-          title: queryTitle || ytId,
-          artist: queryArtist || 'YouTube Music',
+          title: safeTitle,
+          artist: safeArtist,
+          album: metadata?.album,
+          duration: metadata?.duration,
           youtubeId: ytId,
-          coverUrl: track?.coverUrl,
-          streamUrl: track?.streamUrl,
-          embedUrl: track?.embedUrl,
+          coverUrl: track?.coverUrl || metadata?.coverUrl,
+          streamUrl: track?.streamUrl || metadata?.streamUrl,
+          embedUrl: track?.embedUrl || metadata?.embedUrl,
         }, resolvedAudio);
 
         return res.json({ success: true, data: song });
       }
 
-            const song = await getSongById(id);
+      const song = await getSongById(id, queryTitle, queryArtist);
 
 
       if (!song) {

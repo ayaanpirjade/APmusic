@@ -235,6 +235,19 @@ export async function getPrimaryTrackDetails(youtubeId: string): Promise<Primary
 }
 
 /**
+ * The Primary API's `/track/:id` response contains media identity but may omit
+ * display metadata. Recover the record by exact youtubeId from `/search` so a
+ * YouTube ID can never become a visible song title.
+ */
+export async function findPrimaryTrackByYoutubeId(youtubeId: string): Promise<PrimaryTrack | null> {
+  const cleanId = cleanYoutubeId(youtubeId);
+  if (!cleanId) return null;
+  const response = await fetchPrimaryApi<PrimarySearchResponse>(`/search?q=${encodeURIComponent(cleanId)}`);
+  const tracks = response?.success && Array.isArray(response.tracks) ? response.tracks : [];
+  return tracks.find((track) => cleanYoutubeId(track.youtubeId || track.id) === cleanId) || null;
+}
+
+/**
  * Spotify Primary API playback contract. The current endpoint exposes a
  * YouTube stream/embed identity; if it later returns a direct file, it is
  * accepted here. No legacy catalog or fallback provider is queried.

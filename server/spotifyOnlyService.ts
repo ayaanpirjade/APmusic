@@ -3,6 +3,7 @@ import {
   getPrimaryTrackDetails,
   searchPrimarySongs,
   formatPrimaryTrackToSong,
+  findPrimaryTrackByYoutubeId,
   type SpotifySong,
 } from './primaryMusicService.js';
 
@@ -27,17 +28,32 @@ export async function searchAll(query: string): Promise<{
   };
 }
 
-export async function getSongById(id: string): Promise<MusicSong | null> {
-  const track = await getPrimaryTrackDetails(id);
-  if (!track) return null;
+export async function getSongById(id: string, title = '', artist = ''): Promise<MusicSong | null> {
+  const cleanId = id.replace(/^yt[_-]/, '').trim();
+  const [track, metadata] = await Promise.all([
+    getPrimaryTrackDetails(cleanId),
+    findPrimaryTrackByYoutubeId(cleanId),
+  ]);
+  if (!track && !metadata) return null;
+
+  const safeTitle = title.trim() && !/^yt[_-][\w-]{6,}$/i.test(title.trim())
+    ? title.trim()
+    : metadata?.title?.trim() || '';
+  const safeArtist = artist.trim() && !/^yt[_-][\w-]{6,}$/i.test(artist.trim())
+    ? artist.trim()
+    : metadata?.artist?.trim() || '';
+  if (!safeTitle || !safeArtist) return null;
+
   return formatPrimaryTrackToSong({
-    id: track.id,
-    title: id,
-    artist: 'Spotify Primary Track',
-    youtubeId: track.youtubeId,
-    coverUrl: track.coverUrl,
-    streamUrl: track.streamUrl,
-    embedUrl: track.embedUrl,
+    id: `yt_${cleanId}`,
+    title: safeTitle,
+    artist: safeArtist,
+    album: metadata?.album,
+    duration: metadata?.duration,
+    youtubeId: cleanId,
+    coverUrl: track?.coverUrl || metadata?.coverUrl,
+    streamUrl: track?.streamUrl || metadata?.streamUrl,
+    embedUrl: track?.embedUrl || metadata?.embedUrl,
   });
 }
 
@@ -74,6 +90,3 @@ export async function getArtistDetails(_id: string): Promise<any | null> {
   return null;
 }
 
-export async function getLyrics(_id: string, _songName = '', _artistName = '', _duration = 0): Promise<null> {
-  return null;
-}

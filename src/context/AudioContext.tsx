@@ -173,6 +173,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
+  const isYoutubeIdLike = (value?: string): boolean => {
+    const normalized = String(value || '').trim();
+    return /^yt[_-][\w-]{6,}$/i.test(normalized) || /^[A-Za-z0-9_-]{11}$/.test(normalized);
+  };
+
+  const preserveSelectedMetadata = (selected: Song, candidate: Song): Song => {
+    const preserved = { ...candidate };
+    if (selected.name && !isYoutubeIdLike(selected.name)) preserved.name = selected.name;
+    if (selected.primaryArtists && !isYoutubeIdLike(selected.primaryArtists)) preserved.primaryArtists = selected.primaryArtists;
+    if (selected.album?.name && !isYoutubeIdLike(selected.album.name)) preserved.album = selected.album;
+    if (selected.image?.length) preserved.image = selected.image;
+    if (selected.duration > 0) preserved.duration = selected.duration;
+    if (selected.lyricsId) preserved.lyricsId = selected.lyricsId;
+    return preserved;
+  };
+
   const extractYoutubeId = (song?: Song | null): string => {
     if (!song) return '';
     const directId = song.id.match(/^yt[_-]([\w-]{6,})$/i)?.[1];
@@ -549,7 +565,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (song.id) {
             const details = await api.getSongDetails(song.id, song.name, song.primaryArtists);
             if (details) {
-              activeSong = { ...details };
+              activeSong = preserveSelectedMetadata(song, details);
               playUrl = resolvePlayUrl(activeSong, audioQuality);
               embedUrl = activeSong.embedUrl || embedUrl;
               youtubeId = extractYoutubeId(activeSong) || youtubeId;
@@ -581,6 +597,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (!isLatestRequest()) return;
+      activeSong = preserveSelectedMetadata(song, activeSong);
 
       const rawPlayUrl = isDirectAudio(playUrl) ? playUrl : '';
       const proxiedUrl = rawPlayUrl ? toStreamProxyUrl(rawPlayUrl) : '';
