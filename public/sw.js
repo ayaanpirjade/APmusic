@@ -1,5 +1,5 @@
 // APMUSIC Progressive Web App Service Worker
-const CACHE_NAME = 'apmusic-cache-v1';
+const CACHE_NAME = 'apmusic-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,29 +31,33 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests that are not API calls or audio streams
+  // Never cache API calls, audio streams, or third-party media.
   if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
     return;
   }
 
+  const requestUrl = new URL(event.request.url);
+  const isNavigation = event.request.mode === 'navigate'
+    || requestUrl.pathname === '/'
+    || requestUrl.pathname === '/index.html';
+
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      }).catch(() => {
-        // Offline fallback
-        return cachedResponse;
-      });
-    })
+    (isNavigation
+      ? fetch(event.request, { cache: 'no-store' })
+          .then((response) => {
+            if (response && response.status === 200 && response.type === 'basic') {
+              caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', response.clone()));
+            }
+            return response;
+          })
+          .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
+      : caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
+          return fetch(event.request).then((response) => {
+            if (!response || response.status !== 200 || response.type !== 'basic') return response;
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+            return response;
+          });
+        }))
   );
 });
