@@ -1,6 +1,14 @@
 import { Song, Album, Playlist, Artist, LyricsData, SpotifyPreset, AIDJMix } from '../types';
 
-export const API_BASE_URL = (((import.meta as any).env?.VITE_API_BASE_URL as string) || '').replace(/\/$/, '');
+const configuredApiBase = (((import.meta as any).env?.VITE_API_BASE_URL as string) || '').replace(/\/$/, '');
+const isNativeApp = typeof window !== 'undefined'
+  && (window.location.protocol === 'capacitor:'
+    || window.location.hostname === 'localhost'
+    || Boolean((window as any).Capacitor?.isNativePlatform?.()));
+
+// Web stays same-origin; the packaged APK must call the live API instead of
+// trying to fetch `/api/*` from its local capacitor://localhost origin.
+export const API_BASE_URL = configuredApiBase || (isNativeApp ? 'https://a-p-music.vercel.app' : '');
 const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 export const api = {
