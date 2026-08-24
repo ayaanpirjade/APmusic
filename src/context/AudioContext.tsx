@@ -398,13 +398,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           }
 
-          if ((!playUrl || !isDirectAudio(playUrl)) && song.name) {
-            const searchResults = await api.searchSongs(`${song.name} ${song.primaryArtists || ''}`.trim(), 1, 3);
-            if (searchResults && searchResults.length > 0) {
-              activeSong = { ...searchResults[0] };
-              playUrl = resolvePlayUrl(activeSong, audioQuality);
-            }
-          }
+          // Do not perform a generic search here. The selected result comes
+          // from the latest provider, so replacing it with searchResults[0]
+          // can silently switch both metadata and audio to an older provider.
+          // The ID-bound resolver above is the only permitted hydration path.
         } catch (fetchErr) {
           console.warn('Failed to dynamically hydrate song stream:', fetchErr);
         }
