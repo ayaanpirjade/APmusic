@@ -42,9 +42,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-32 pt-2 select-none">
+    <div className="apmusic-library-page w-full min-w-0 space-y-6 pb-40 pt-2 select-none">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Your Library</h1>
           <p className="text-xs sm:text-sm text-slate-400">
@@ -52,7 +52,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onCreatePlaylistModal}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600/40 hover:bg-indigo-600/60 border border-indigo-400/40 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95"

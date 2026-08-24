@@ -88,7 +88,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-7 pb-36 pt-1 select-none">
+    <div className="apmusic-settings-page w-full min-w-0 max-w-3xl mx-auto space-y-7 pb-40 pt-1 select-none">
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-['Outfit']">
@@ -101,16 +101,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* 1. Account Section */}
       <section className="p-5 sm:p-6 rounded-[28px] glass-card border border-white/20 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
+        <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3.5">
             <img
               src={user.avatar}
               alt={user.name}
               className="w-14 h-14 rounded-2xl object-cover border-2 border-indigo-400/50 shadow-md ring-2 ring-indigo-500/20"
             />
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">{user.name}</h2>
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 className="min-w-0 truncate text-base font-bold text-white">{user.name}</h2>
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
                   {user.isGoogleAuth ? 'Google Verified' : 'Local User'}
                 </span>
@@ -119,11 +119,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             {user.isGoogleAuth ? (
               <button
                 onClick={logout}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl glass-pill hover:bg-rose-500/20 hover:border-rose-500/30 text-rose-300 text-xs font-bold transition-all"
+                className="flex w-full items-center justify-center gap-1.5 px-4 py-2 rounded-2xl glass-pill hover:bg-rose-500/20 hover:border-rose-500/30 text-rose-300 text-xs font-bold transition-all sm:w-auto"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Sign Out</span>
@@ -131,7 +131,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             ) : (
               <button
                 onClick={onOpenLogin || loginWithGoogle}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-950/60 transition-all hover:scale-105"
+                className="flex w-full items-center justify-center gap-1.5 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-950/60 transition-all hover:scale-105 sm:w-auto"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Connect Google</span>
@@ -166,9 +166,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       : 'glass-card border-white/10 hover:border-white/20'
                   }`}
                 >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs sm:text-sm font-bold text-white">{q.title}</h4>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <h4 className="min-w-0 break-words text-xs sm:text-sm font-bold text-white">{q.title}</h4>
                       <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                         {q.badge}
                       </span>

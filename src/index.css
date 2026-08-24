@@ -183,3 +183,68 @@ html.capacitor-native [data-theme="light"] {
     border-radius: 24px;
   }
 }
+
+
+/* Android WebView stability guards for Library/Profile only.
+   The native shell keeps the liquid-glass treatment elsewhere; these two
+   dense screens use stable glass surfaces to avoid touch-triggered repaint
+   and sticky-hover artifacts on narrow WebView devices. */
+html.capacitor-native .apmusic-library-page,
+html.capacitor-native .apmusic-settings-page {
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  isolation: isolate;
+}
+
+html.capacitor-native .apmusic-library-page .glass-card,
+html.capacitor-native .apmusic-library-page .ios-glass-card,
+html.capacitor-native .apmusic-library-page .ios-glass,
+html.capacitor-native .apmusic-settings-page .glass-card,
+html.capacitor-native .apmusic-settings-page .ios-glass-card,
+html.capacitor-native .apmusic-settings-page .ios-glass {
+  background-color: rgba(17, 23, 39, 0.94) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+html.capacitor-native .apmusic-library-page .glass-card:hover,
+html.capacitor-native .apmusic-library-page .ios-glass-card:hover,
+html.capacitor-native .apmusic-library-page .ios-glass:hover,
+html.capacitor-native .apmusic-settings-page .glass-card:hover,
+html.capacitor-native .apmusic-settings-page .ios-glass-card:hover,
+html.capacitor-native .apmusic-settings-page .ios-glass:hover {
+  background-color: rgba(17, 23, 39, 0.94) !important;
+  transform: translateZ(0);
+}
+
+html.capacitor-native .apmusic-library-page h1,
+html.capacitor-native .apmusic-library-page h2,
+html.capacitor-native .apmusic-library-page h3,
+html.capacitor-native .apmusic-library-page h4,
+html.capacitor-native .apmusic-library-page p,
+html.capacitor-native .apmusic-library-page span,
+html.capacitor-native .apmusic-settings-page h1,
+html.capacitor-native .apmusic-settings-page h2,
+html.capacitor-native .apmusic-settings-page h3,
+html.capacitor-native .apmusic-settings-page h4,
+html.capacitor-native .apmusic-settings-page p,
+html.capacitor-native .apmusic-settings-page span {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@media (max-width: 600px) {
+  html.capacitor-native .apmusic-library-page,
+  html.capacitor-native .apmusic-settings-page {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.capacitor-native .apmusic-library-page section,
+  html.capacitor-native .apmusic-settings-page section {
+    max-width: 100%;
+  }
+}
