@@ -25,7 +25,6 @@ export const SongRow: React.FC<SongRowProps> = ({
     useAudio();
   const { isSongLiked, toggleLikeSong, customPlaylists, addSongToPlaylist } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
-  const [showPlaylistSubmenu, setShowPlaylistSubmenu] = useState(false);
 
   const isCurrent = currentSong?.id === song.id;
   const isCurrentlyPlaying = isCurrent && isPlaying;
@@ -56,7 +55,7 @@ export const SongRow: React.FC<SongRowProps> = ({
       onClick={handleClick}
       className={`group relative flex items-center justify-between p-2.5 sm:p-3 rounded-2xl cursor-pointer transition-all duration-200 select-none ${
         isCurrent
-          ? 'bg-indigo-600/25 border border-indigo-400/40 text-white shadow-md'
+          ? 'bg-indigo-600/30 border border-indigo-400/50 text-white shadow-lg shadow-indigo-950/40'
           : 'ios-glass-card hover:border-white/20 text-slate-300 hover:text-white'
       }`}
     >
@@ -69,7 +68,7 @@ export const SongRow: React.FC<SongRowProps> = ({
               <div className="flex items-end justify-center gap-[2px] h-3.5">
                 <span className="w-[2px] bg-indigo-400 rounded-full animate-[pulse_0.6s_ease-in-out_infinite]" style={{ height: '70%' }} />
                 <span className="w-[2px] bg-purple-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite]" style={{ height: '100%' }} />
-                <span className="w-[2px] bg-pink-400 rounded-full animate-[pulse_0.5s_ease-in-out_infinite]" style={{ height: '80%' }} />
+                <span className="w-[2px] bg-cyan-400 rounded-full animate-[pulse_0.5s_ease-in-out_infinite]" style={{ height: '80%' }} />
               </div>
             ) : (
               <span className="group-hover:hidden">{index !== undefined ? index + 1 : ''}</span>
@@ -81,13 +80,13 @@ export const SongRow: React.FC<SongRowProps> = ({
         )}
 
         {/* Artwork Thumbnail */}
-        <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-sm shrink-0 border border-white/10">
+        <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-sm shrink-0 border border-white/10 bg-white/5">
           <img
             src={coverUrl}
             alt={song.name}
             loading="lazy"
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           />
         </div>
 
@@ -95,7 +94,7 @@ export const SongRow: React.FC<SongRowProps> = ({
         <div className="min-w-0 flex-1 pr-2">
           <div className="flex items-center gap-2">
             <h4
-              className={`text-sm font-bold truncate ${
+              className={`text-xs sm:text-sm font-bold truncate ${
                 isCurrent ? 'text-indigo-300' : 'text-white group-hover:text-indigo-200'
               }`}
             >
@@ -107,7 +106,7 @@ export const SongRow: React.FC<SongRowProps> = ({
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 truncate mt-0.5">
+          <p className="text-[11px] sm:text-xs text-slate-400 truncate mt-0.5">
             {song.primaryArtists}
             {song.album?.name && ` • ${song.album.name}`}
           </p>
@@ -122,7 +121,7 @@ export const SongRow: React.FC<SongRowProps> = ({
         {/* Like Button */}
         <button
           onClick={() => toggleLikeSong(song)}
-          className={`p-2 rounded-xl hover:bg-white/10 transition-colors ${
+          className={`p-2 rounded-xl hover:bg-white/10 active:scale-90 transition-all ${
             isLiked ? 'text-rose-400' : 'text-slate-400 hover:text-white'
           }`}
           title={isLiked ? 'Unlike' : 'Like'}
