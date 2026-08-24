@@ -1,8 +1,29 @@
-import { SaavnSong, formatDownloadUrls, formatImageUrls, sanitizeHtml, searchJioSongs, searchSongs } from './saavnService.js';
-import { getFallenTrackDetails, resolveFallenTrack, searchFallenFallbackSongs } from './fallenService.js';
-
 const PRIMARY_API_BASE = 'https://spotify-theta-ten.vercel.app/api/v1';
-const PRIMARY_API_KEY = (process.env.MUSIC_API_KEY || '').trim();
+const PRIMARY_API_KEY = (process.env.MUSIC_API_KEY || 'ayaan-randi-321').trim();
+
+export interface SpotifySong {
+  id: string;
+  name: string;
+  type: string;
+  album: { id: string; name: string; url: string };
+  year: string;
+  releaseDate: string;
+  duration: number;
+  label: string;
+  primaryArtists: string;
+  featuredArtists: string;
+  singers: string;
+  language: string;
+  hasLyrics: boolean;
+  lyricsId?: string;
+  image: Array<{ quality: string; url: string }>;
+  downloadUrl: Array<{ quality: string; url: string }>;
+  playUrl: string;
+  copyright: string;
+  url: string;
+  embedUrl?: string;
+  provider: 'spotify-primary';
+}
 
 export interface PrimaryTrack {
   id: string;
@@ -16,15 +37,14 @@ export interface PrimaryTrack {
   embedUrl?: string;
 }
 
-export interface PrimarySearchResponse {
+interface PrimarySearchResponse {
   success: boolean;
-  query?: string;
   total?: number;
   tracks?: PrimaryTrack[];
   error?: string;
 }
 
-export interface PrimaryChartsResponse {
+interface PrimaryChartsResponse {
   success: boolean;
   category?: string;
   total?: number;
@@ -32,7 +52,7 @@ export interface PrimaryChartsResponse {
   error?: string;
 }
 
-export interface PrimaryPlaylistImportResponse {
+interface PrimaryPlaylistImportResponse {
   success: boolean;
   data?: {
     name: string;
@@ -58,291 +78,121 @@ export interface PrimaryTrackResponse {
 }
 
 async function fetchPrimaryApi<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
-  const url = `${PRIMARY_API_BASE}${endpoint}`;
-  const headers = {
-    'x-api-key': PRIMARY_API_KEY,
-    'Accept': 'application/json',
-    'User-Agent': 'APMUSIC-Audio-Core/2.0',
-    ...(options.headers || {}),
-  };
-
   try {
-    const res = await fetch(url, {
+    const response = await fetch(`${PRIMARY_API_BASE}${endpoint}`, {
       ...options,
-      headers,
+      headers: {
+        'x-api-key': PRIMARY_API_KEY,
+        Accept: 'application/json',
+        'User-Agent': 'APMUSIC-Spotify-Primary/3.0',
+        ...(options.headers || {}),
+      },
       signal: AbortSignal.timeout(12000),
     });
-
-    if (!res.ok) {
+    if (!response.ok) {
+      console.warn(`Spotify primary API returned ${response.status} for ${endpoint}`);
       return null;
     }
-
-    return (await res.json()) as T;
-  } catch (err: any) {
-    console.error(`Primary API error for ${endpoint}:`, err.message || err);
+    return await response.json() as T;
+  } catch (error: any) {
+    console.error(`Spotify primary API error for ${endpoint}:`, error?.message || error);
     return null;
   }
 }
 
-/**
- * Clean track title and artist for high-precision audio matching
- */
-export function cleanTitleAndArtist(rawTitle: string, rawArtist = ''): { query: string; cleanTitle: string } {
-  const cleanTitle = rawTitle
-    .replace(/\(.*?\)|\[.*?\]/g, ' ')
-    .split('|')[0]
-    .replace(/feat\..*$/i, '')
-    .replace(/ft\..*$/i, '')
-    .replace(/official\s*(video|audio|music\s*video|lyric\s*video)/gi, '')
-    .replace(/full\s*song/gi, '')
-    .replace(/4k|hd|1080p|remix|mashup/gi, '')
-    .replace(/[#@]/g, '')
-    .replace(/\s+/g, ' ')
+function sanitizeHtml(value: string): string {
+  return String(value || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&#039;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
     .trim();
-
-  const cleanArtist = rawArtist
-    .replace(/vevo|official|channel|records|t-series|sony\s*music/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const query = `${cleanTitle} ${cleanArtist}`.trim();
-  return { query: query || rawTitle, cleanTitle: cleanTitle || rawTitle };
 }
 
-function identityTokens(value: string): Set<string> {
-  return new Set(
-    value.toLowerCase()
-      .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .split(/\s+/)
-      .filter((token) => token.length > 1 && !['official', 'video', 'audio', 'lyrics', 'song', 'full'].includes(token))
-  );
+function imageUrls(url?: string): Array<{ quality: string; url: string }> {
+  const fallback = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+  const source = (url || fallback).replace('http:', 'https:');
+  return [
+    { quality: '50x50', url: source },
+    { quality: '150x150', url: source },
+    { quality: '500x500', url: source },
+  ];
 }
 
-function matchingSaavnCandidate(candidates: SaavnSong[], title: string, artist: string): SaavnSong | null {
-  const wantedTitle = identityTokens(title);
-  const wantedArtist = identityTokens(artist);
-  const wantedCombined = identityTokens(`${title} ${artist}`);
-  if (wantedTitle.size === 0) return null;
-
-  let best: SaavnSong | null = null;
-  let bestScore = 0;
-  for (const candidate of candidates) {
-    const candidateTitle = identityTokens(candidate.name);
-    const candidateArtist = identityTokens(candidate.primaryArtists || candidate.singers || '');
-    const candidateCombined = identityTokens(`${candidate.name} ${candidate.primaryArtists || candidate.singers || ''}`);
-    const titleOverlap = [...wantedTitle].filter((token) => candidateTitle.has(token)).length / wantedTitle.size;
-    const artistOverlap = wantedArtist.size === 0
-      ? 0.5
-      : [...wantedArtist].filter((token) => candidateArtist.has(token)).length / wantedArtist.size;
-    const combinedOverlap = wantedCombined.size === 0
-      ? 0
-      : [...wantedCombined].filter((token) => candidateCombined.has(token)).length / wantedCombined.size;
-    const score = titleOverlap * 0.55 + artistOverlap * 0.2 + combinedOverlap * 0.25;
-    const safeMatch = (titleOverlap >= 0.5 && artistOverlap >= 0.5) || combinedOverlap >= 0.65;
-    if (safeMatch && score > bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  }
-  return best;
+function cleanYoutubeId(value?: string): string {
+  return String(value || '').replace(/^yt[-_]/, '').trim();
 }
 
-/**
- * Resolve direct high-fidelity playable audio stream for a track
- */
-export async function resolveTrackAudioStream(
-  title: string,
-  artist = '',
-  youtubeId = ''
-): Promise<{ playUrl: string; downloadUrl: { quality: string; url: string }[] } | null> {
-  const { query, cleanTitle } = cleanTitleAndArtist(title, artist);
-
-  // 1. Resolve by the exact YouTube ID first. Never use a title-only match
-  // when an ID is available, because similarly named songs can share metadata.
-  if (youtubeId) {
-    const cleanYoutubeId = youtubeId.replace(/^yt[-_]/, '').trim();
-    if (cleanYoutubeId) {
-      try {
-        const exactUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(cleanYoutubeId)}`;
-        const exact = await getFallenTrackDetails(exactUrl);
-        const exactStream = exact?.cdnurl || exact?.download_url || exact?.stream_url || '';
-        if (exactStream && !/youtube\.com|youtu\.be/i.test(exactStream)) {
-          return {
-            playUrl: exactStream,
-            downloadUrl: formatDownloadUrls(exactStream),
-          };
-        }
-      } catch (_) {}
-    }
-
-    // If exact-ID resolution is temporarily unavailable, only accept a
-    // strongly matching title+artist result. Never blindly use the first hit.
-    try {
-      const workerMatches = await searchSongs(query, 1, 8);
-      const jioMatches = await searchJioSongs(query, 1, 8);
-      const matched = matchingSaavnCandidate([...workerMatches, ...jioMatches], cleanTitle, artist);
-      if (matched && (matched.playUrl || matched.downloadUrl?.length)) {
-        return {
-          playUrl: matched.playUrl || matched.downloadUrl[matched.downloadUrl.length - 1].url,
-          downloadUrl: matched.downloadUrl || formatDownloadUrls(matched.playUrl),
-        };
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  // 2. Try JioSaavn / Worker lossless direct audio stream search
-  try {
-    const saavnMatches = await searchSongs(query, 1, 3);
-    if (saavnMatches.length > 0) {
-      const best = matchingSaavnCandidate(saavnMatches, cleanTitle, artist) || saavnMatches[0];
-      if (best.playUrl || (best.downloadUrl && best.downloadUrl.length > 0)) {
-        return {
-          playUrl: best.playUrl || best.downloadUrl[best.downloadUrl.length - 1]?.url,
-          downloadUrl: best.downloadUrl || formatDownloadUrls(best.playUrl),
-        };
-      }
-    }
-  } catch (_) {}
-
-  // 3. Try with just the cleaned title if query was too specific
-  if (cleanTitle !== query) {
-    try {
-      const titleMatches = await searchSongs(cleanTitle, 1, 2);
-      if (titleMatches.length > 0) {
-        const best = matchingSaavnCandidate(titleMatches, cleanTitle, artist) || titleMatches[0];
-        if (best.playUrl || (best.downloadUrl && best.downloadUrl.length > 0)) {
-          return {
-            playUrl: best.playUrl || best.downloadUrl[best.downloadUrl.length - 1]?.url,
-            downloadUrl: best.downloadUrl || formatDownloadUrls(best.playUrl),
-          };
-        }
-      }
-    } catch (_) {}
-  }
-
-  // 4. Fallback to Fallen stream resolution
-  try {
-    const fallenMatches = await searchFallenFallbackSongs(cleanTitle || title, 2);
-    if (fallenMatches.length > 0) {
-      const best = fallenMatches[0];
-      if (best.playUrl && !best.playUrl.includes('youtube.com/watch')) {
-        return {
-          playUrl: best.playUrl,
-          downloadUrl: best.downloadUrl || formatDownloadUrls(best.playUrl),
-        };
-      }
-    }
-  } catch (_) {}
-
-  return null;
+function isDirectAudio(url?: string): boolean {
+  return Boolean(url && !/youtube\.com|youtu\.be/i.test(url));
 }
 
-/**
- * Format a PrimaryTrack item into the universal SaavnSong object
- */
+function youtubeEmbedUrl(youtubeId?: string, explicit?: string): string {
+  if (explicit) return explicit;
+  const cleanId = cleanYoutubeId(youtubeId);
+  return cleanId ? `https://www.youtube.com/embed/${encodeURIComponent(cleanId)}?enablejsapi=1&playsinline=1` : '';
+}
+
 export function formatPrimaryTrackToSong(
   track: PrimaryTrack,
-  resolvedAudio?: { playUrl: string; downloadUrl: { quality: string; url: string }[] } | null
-): SaavnSong {
-  const cleanTitle = sanitizeHtml(track.title || 'Untitled Track');
-  const cleanArtist = sanitizeHtml(track.artist || 'Unknown Artist');
-  const duration = Number(track.duration || 180);
-  const images = formatImageUrls(track.coverUrl);
-
-  const isAudioFile = (u?: string) =>
-    Boolean(u && !u.includes('youtube.com/watch') && !u.includes('youtu.be/'));
-
-  const finalStreamUrl = (resolvedAudio?.playUrl && isAudioFile(resolvedAudio.playUrl))
-    ? resolvedAudio.playUrl
-    : (track.streamUrl && isAudioFile(track.streamUrl) ? track.streamUrl : '');
-
-  const downloadUrls = (resolvedAudio?.downloadUrl && resolvedAudio.downloadUrl.length > 0)
-    ? resolvedAudio.downloadUrl
-    : (finalStreamUrl ? formatDownloadUrls(finalStreamUrl) : []);
-
-  const ytId = track.youtubeId || (track.id && track.id.startsWith('yt_') ? track.id.replace('yt_', '') : '');
+  resolvedAudio?: { playUrl?: string; downloadUrl?: { quality: string; url: string }[]; embedUrl?: string } | null,
+): SpotifySong {
+  const youtubeId = cleanYoutubeId(track.youtubeId || track.id);
+  const directUrl = isDirectAudio(resolvedAudio?.playUrl)
+    ? resolvedAudio?.playUrl
+    : isDirectAudio(track.streamUrl)
+      ? track.streamUrl
+      : '';
+  const embedUrl = resolvedAudio?.embedUrl || youtubeEmbedUrl(youtubeId, track.embedUrl);
+  const title = sanitizeHtml(track.title || 'Untitled Track');
+  const artist = sanitizeHtml(track.artist || 'Unknown Artist');
 
   return {
-    id: ytId ? `yt_${ytId}` : track.id || `track_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    name: cleanTitle,
+    id: youtubeId ? `yt_${youtubeId}` : String(track.id || `spotify_${Date.now()}`),
+    name: title,
     type: 'song',
-    album: {
-      id: `album_${ytId || track.id || 'single'}`,
-      name: sanitizeHtml(track.album || 'Single'),
-      url: '',
-    },
+    album: { id: `spotify-album-${youtubeId || track.id || 'single'}`, name: sanitizeHtml(track.album || 'Single'), url: '' },
     year: String(new Date().getFullYear()),
     releaseDate: '',
-    duration,
-    label: 'APMUSIC Primary Streaming Engine',
-    primaryArtists: cleanArtist,
+    duration: Number(track.duration || 0),
+    label: 'Spotify Primary Music API',
+    primaryArtists: artist,
     featuredArtists: '',
-    singers: cleanArtist,
+    singers: artist,
     language: 'all',
     hasLyrics: false,
-    image: images,
-    downloadUrl: downloadUrls,
-    playUrl: finalStreamUrl,
-    copyright: 'APMUSIC Audio Engine',
-    url: track.streamUrl || (ytId ? `https://www.youtube.com/watch?v=${ytId}` : ''),
+    image: imageUrls(track.coverUrl),
+    downloadUrl: resolvedAudio?.downloadUrl || [],
+    playUrl: directUrl,
+    copyright: 'APMUSIC Spotify Primary Source',
+    url: track.streamUrl || (youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : ''),
+    embedUrl,
+    provider: 'spotify-primary',
   };
 }
 
-/**
- * Search Songs using the Primary Music API (Primary Source)
- */
-export async function searchPrimarySongs(query: string, limit = 20): Promise<SaavnSong[]> {
-  if (!query || !query.trim()) return [];
-
-  const data = await fetchPrimaryApi<PrimarySearchResponse>(`/search?q=${encodeURIComponent(query.trim())}`);
-  if (!data || !data.success || !Array.isArray(data.tracks)) {
-    return [];
-  }
-
-  const rawTracks = data.tracks.slice(0, limit);
-
-  // Map to SaavnSong models
-  const songs = rawTracks.map((t) => formatPrimaryTrackToSong(t));
-
-  // Keep search results provider-pure. Do not pre-resolve these latest-API
-  // items through Saavn/Fallen, because that injects an old-provider URL into
-  // a result whose metadata and artwork came from the latest API. Playback is
-  // resolved on demand using the selected track's exact ID.
-  return songs;
+export async function searchPrimarySongs(query: string, limit = 20): Promise<SpotifySong[]> {
+  if (!query.trim()) return [];
+  const response = await fetchPrimaryApi<PrimarySearchResponse>(`/search?q=${encodeURIComponent(query.trim())}`);
+  if (!response?.success || !Array.isArray(response.tracks)) return [];
+  return response.tracks.slice(0, limit).map((track) => formatPrimaryTrackToSong(track));
 }
 
-/**
- * Get Top Charts & Trending Songs from Primary API
- * Categories: global, trending, hindi, punjabi, pop, lofi
- */
-export async function getPrimaryCharts(category = 'trending'): Promise<{
-  category: string;
-  total: number;
-  songs: SaavnSong[];
-}> {
-  const cleanCat = category.toLowerCase().trim() || 'trending';
-  const data = await fetchPrimaryApi<PrimaryChartsResponse>(`/charts?category=${encodeURIComponent(cleanCat)}`);
-
-  if (!data || !data.success || !Array.isArray(data.tracks)) {
-    return { category: cleanCat, total: 0, songs: [] };
-  }
-
-  const songs = data.tracks.map((t) => formatPrimaryTrackToSong(t));
-
-  // Keep chart results provider-pure for the same reason as search results:
-  // resolve audio only after the user selects a specific latest-API track ID.
+export async function getPrimaryCharts(category = 'trending'): Promise<{ category: string; total: number; songs: SpotifySong[] }> {
+  const cleanCategory = category.trim().toLowerCase() || 'trending';
+  const response = await fetchPrimaryApi<PrimaryChartsResponse>(`/charts?category=${encodeURIComponent(cleanCategory)}`);
+  const songs = response?.success && Array.isArray(response.tracks)
+    ? response.tracks.map((track) => formatPrimaryTrackToSong(track))
+    : [];
   return {
-    category: data.category || cleanCat,
-    total: data.total || songs.length,
+    category: response?.category || cleanCategory,
+    total: response?.total || songs.length,
     songs,
   };
 }
 
-/**
- * Import Spotify or YouTube Playlist using Primary API
- */
 export async function importPrimaryPlaylist(url: string): Promise<{
   id: string;
   title: string;
@@ -350,46 +200,52 @@ export async function importPrimaryPlaylist(url: string): Promise<{
   owner: string;
   coverImage: string;
   totalTracks: number;
-  resolvedSongs: SaavnSong[];
+  resolvedSongs: SpotifySong[];
 } | null> {
-  if (!url || !url.trim()) return null;
-
-  const res = await fetchPrimaryApi<PrimaryPlaylistImportResponse>('/playlist/import', {
+  if (!url.trim()) return null;
+  const response = await fetchPrimaryApi<PrimaryPlaylistImportResponse>('/playlist/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: url.trim() }),
   });
-
-  if (!res || !res.success || !res.data) {
-    return null;
-  }
-
-  const { name, description, coverUrl, provider, totalTracks, tracks } = res.data;
-  const rawTracks = Array.isArray(tracks) ? tracks : [];
-
-  const resolvedSongs = rawTracks.map((t) => formatPrimaryTrackToSong(t));
-
+  if (!response?.success || !response.data) return null;
+  const songs = Array.isArray(response.data.tracks)
+    ? response.data.tracks.map((track) => formatPrimaryTrackToSong(track))
+    : [];
   return {
-    id: `imported-${Date.now()}`,
-    title: name || 'Imported Playlist',
-    description: description || `Imported from ${provider || 'Music API'}`,
-    owner: provider === 'spotify' ? 'Spotify' : 'YouTube',
-    coverImage: coverUrl || (resolvedSongs[0]?.image[2]?.url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80'),
-    totalTracks: totalTracks || resolvedSongs.length,
-    resolvedSongs,
+    id: `spotify-import-${Date.now()}`,
+    title: response.data.name || 'Spotify Playlist',
+    description: response.data.description || 'Imported from Spotify Primary API',
+    owner: response.data.provider || 'Spotify',
+    coverImage: response.data.coverUrl || songs[0]?.image?.[2]?.url || imageUrls()[2].url,
+    totalTracks: response.data.totalTracks || songs.length,
+    resolvedSongs: songs,
   };
 }
 
-/**
- * Get Track Details & Playback Info from Primary API
- */
 export async function getPrimaryTrackDetails(youtubeId: string): Promise<PrimaryTrackResponse['track'] | null> {
-  if (!youtubeId) return null;
-  const cleanId = youtubeId.replace(/^yt-|^yt_/, '');
-  const res = await fetchPrimaryApi<PrimaryTrackResponse>(`/track/${encodeURIComponent(cleanId)}`);
-  if (!res || !res.success || !res.track) {
-    return null;
-  }
-  return res.track;
+  const cleanId = cleanYoutubeId(youtubeId);
+  if (!cleanId) return null;
+  const response = await fetchPrimaryApi<PrimaryTrackResponse>(`/track/${encodeURIComponent(cleanId)}`);
+  return response?.success && response.track ? response.track : null;
 }
 
+/**
+ * Spotify Primary API playback contract. The current endpoint exposes a
+ * YouTube stream/embed identity; if it later returns a direct file, it is
+ * accepted here. No legacy catalog or fallback provider is queried.
+ */
+export async function resolveTrackAudioStream(
+  _title: string,
+  _artist = '',
+  youtubeId = '',
+): Promise<{ playUrl: string; downloadUrl: { quality: string; url: string }[]; embedUrl?: string } | null> {
+  const track = await getPrimaryTrackDetails(youtubeId);
+  if (!track) return null;
+  const directUrl = isDirectAudio(track.streamUrl) ? track.streamUrl || '' : '';
+  return {
+    playUrl: directUrl,
+    downloadUrl: [],
+    embedUrl: youtubeEmbedUrl(track.youtubeId || youtubeId, track.embedUrl),
+  };
+}

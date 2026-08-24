@@ -11,10 +11,8 @@ import {
   getAlbumDetails,
   getArtistDetails,
   getLyrics,
-} from './server/saavnService.js';
-import { parseSpotifyUrl } from './server/spotifyService.js';
+} from './server/spotifyOnlyService.js';
 import { generateAIDJMix } from './server/aiService.js';
-import { isOneGrabConfigured, searchOneGrabSongs } from './server/onegrabService.js';
 import {
   searchPrimarySongs,
   getPrimaryCharts,
@@ -53,29 +51,11 @@ function createApp() {
     });
   });
 
-  // Home Modules (Trending, Charts, Playlists, Top Artists)
+  // Home modules from the Spotify Primary API only.
   app.get('/api/modules', async (req, res) => {
     try {
       const languages = (req.query.language as string) || 'hindi,english,punjabi';
-      const [homeData, trendingChart, hindiChart] = await Promise.allSettled([
-        getHomeModules(languages),
-        getPrimaryCharts('trending'),
-        getPrimaryCharts('hindi'),
-      ]);
-
-      const data = homeData.status === 'fulfilled' ? homeData.value : {
-        trending: [],
-        charts: [],
-        playlists: [],
-        newAlbums: [],
-        topArtists: [],
-      };
-
-      // Enrich trending with Primary API live chart tracks
-      if (trendingChart.status === 'fulfilled' && trendingChart.value.songs.length > 0) {
-        data.trending = [...trendingChart.value.songs, ...data.trending].slice(0, 20);
-      }
-
+      const data = await getHomeModules(languages);
       res.json({ success: true, data });
     } catch (err: any) {
       console.error('/api/modules error:', err);
@@ -100,42 +80,20 @@ function createApp() {
     }
   });
 
-  // Search Songs - Primary Music API is the primary source
+  // Search songs from the Spotify Primary API only.
   app.get('/api/search/songs', async (req, res) => {
     try {
       const query = (req.query.query as string) || '';
       const page = parseInt(req.query.page as string, 10) || 1;
       const limit = parseInt(req.query.limit as string, 10) || 20;
-
       if (!query.trim()) {
-        return res.json({ success: true, data: { results: [], total: 0 } });
+        return res.json({ success: true, data: { results: [], total: 0, page, source: 'spotify-primary' } });
       }
-
-      // 1. Try Primary Music Streaming & Playlist API first
-      let results = await searchPrimarySongs(query, limit);
-      let source = 'primary_music_api';
-
-      // 2. Fallback to Saavn / Worker / Jio if primary returned 0 results
-      if (results.length === 0) {
-        results = await searchSongs(query, page, limit);
-        source = 'saavn';
-      }
-
-      // 3. Fallback to OneGrab if configured
-      if (results.length === 0 && isOneGrabConfigured()) {
-        results = await searchOneGrabSongs(query, Math.min(limit, 10));
-        source = results.length > 0 ? 'onegrab' : 'saavn';
-      }
-
+      const results = await searchPrimarySongs(query, limit);
+      res.setHeader('Cache-Control', 'no-store');
       res.json({
         success: true,
-        data: {
-          results,
-          total: results.length,
-          page,
-          source,
-          fallbackUsed: source !== 'primary_music_api',
-        },
+        data: { results, total: results.length, page, source: 'spotify-primary', fallbackUsed: false },
       });
     } catch (err: any) {
       console.error('/api/search/songs error:', err);
@@ -154,28 +112,8 @@ function createApp() {
         });
       }
 
-      const [primarySongs, saavnAll] = await Promise.allSettled([
-        searchPrimarySongs(query, 15),
-        searchAll(query),
-      ]);
-
-      const pSongs = primarySongs.status === 'fulfilled' ? primarySongs.value : [];
-      const sAll = saavnAll.status === 'fulfilled' ? saavnAll.value : { songs: [], albums: [], playlists: [], artists: [] };
-
-      // Primary songs are prioritized, with Saavn supplementary results added
-      const mergedSongs = pSongs.length > 0
-        ? [...pSongs, ...sAll.songs.filter(s => !pSongs.some(p => p.name.toLowerCase() === s.name.toLowerCase()))]
-        : sAll.songs;
-
-      res.json({
-        success: true,
-        data: {
-          songs: mergedSongs,
-          albums: sAll.albums,
-          playlists: sAll.playlists,
-          artists: sAll.artists,
-        },
-      });
+      const spotifyData = await searchAll(query);
+      res.json({ success: true, data: spotifyData });
     } catch (err: any) {
       console.error('/api/search/all error:', err);
       res.status(500).json({ success: false, error: err.message });
@@ -203,11 +141,10 @@ function createApp() {
       const title = (req.query.title as string) || '';
       const artist = (req.query.artist as string) || '';
 
-      const audio = await resolveTrackAudioStream(title || id, artist, id);
-      if (!audio) {
-        return res.status(404).json({ success: false, error: 'Stream not found' });
+            const audio = await resolveTrackAudioStream(title, artist, id);
+      if (!audio || (!audio.playUrl && !audio.embedUrl)) {
+        return res.status(404).json({ success: false, error: 'Spotify track playback info not found' });
       }
-
       res.json({ success: true, data: audio });
     } catch (err: any) {
       console.error('/api/stream/resolve error:', err);
@@ -241,24 +178,8 @@ function createApp() {
         return res.json({ success: true, data: song });
       }
 
-      let song = await getSongById(id);
+            const song = await getSongById(id);
 
-      // If track is missing direct audio stream, resolve via audio stream resolver
-      if (!song || (!song.playUrl && (!song.downloadUrl || song.downloadUrl.length === 0))) {
-        const cleanName = queryTitle || id.replace(/^yt_|^yt-|^fallen_/, '').replace(/[_-]/g, ' ');
-        const resolved = await resolveTrackAudioStream(cleanName, queryArtist, id);
-        if (resolved) {
-          if (song) {
-            song.playUrl = resolved.playUrl;
-            song.downloadUrl = resolved.downloadUrl;
-          } else {
-            const matches = await searchSongs(cleanName, 1, 1);
-            if (matches && matches.length > 0) {
-              song = matches[0];
-            }
-          }
-        }
-      }
 
       if (!song) {
         return res.status(404).json({ success: false, error: 'Song not found' });
@@ -395,22 +316,14 @@ function createApp() {
         return res.status(400).json({ success: false, error: 'Playlist or track URL is required' });
       }
 
-      // 1. Try Primary Music Streaming & Playlist API Importer
       const primaryImported = await importPrimaryPlaylist(url);
-      if (primaryImported && primaryImported.resolvedSongs.length > 0) {
-        return res.json({ success: true, data: primaryImported });
-      }
-
-      // 2. Fallback to Spotify HTML Parser if primary API didn't parse
-      const importedData = await parseSpotifyUrl(url);
-      if (!importedData) {
-        return res.status(400).json({
+      if (!primaryImported) {
+        return res.status(502).json({
           success: false,
-          error: 'Could not resolve playlist. Please ensure the link is a valid public Spotify or YouTube playlist URL.',
+          error: 'Spotify Primary API could not resolve this playlist. No alternate music provider is enabled.',
         });
       }
-
-      res.json({ success: true, data: importedData });
+      res.json({ success: true, data: primaryImported });
     } catch (err: any) {
       console.error('/api/playlist/import error:', err);
       res.status(500).json({ success: false, error: err.message });

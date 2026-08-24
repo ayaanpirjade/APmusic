@@ -32,6 +32,8 @@ export interface Song {
   playUrl: string;
   copyright?: string;
   url?: string;
+  embedUrl?: string;
+  provider?: 'spotify-primary' | string;
   isDownloaded?: boolean;
   localCachedBlob?: string;
 }

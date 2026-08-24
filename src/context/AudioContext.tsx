@@ -103,6 +103,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sleepTimerRemaining, setSleepTimerRemaining] = useState<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const youtubePlayerRef = useRef<any>(null);
+  const youtubeReadyPromiseRef = useRef<Promise<any> | null>(null);
+  const youtubeVideoIdRef = useRef('');
+  const youtubeProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const youtubeEndedHandlerRef = useRef<() => void>(() => {});
   const playRequestIdRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -160,8 +165,134 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       audio.removeEventListener('error', handleError);
       audio.pause();
       audio.src = '';
+      if (youtubeProgressTimerRef.current) clearInterval(youtubeProgressTimerRef.current);
+      youtubeProgressTimerRef.current = null;
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = null;
+      document.getElementById('apmusic-youtube-player')?.remove();
     };
   }, []);
+
+  const extractYoutubeId = (song?: Song | null): string => {
+    if (!song) return '';
+    const directId = song.id.match(/^yt[_-]([\w-]{6,})$/i)?.[1];
+    if (directId) return directId;
+    const source = song.embedUrl || song.url || '';
+    return source.match(/(?:embed\/|v=)([\w-]{6,})/i)?.[1] || '';
+  };
+
+  const ensureYoutubePlayer = useCallback(async (initialVideoId = ''): Promise<any> => {
+    if (youtubePlayerRef.current) return youtubePlayerRef.current;
+    if (youtubeReadyPromiseRef.current) return youtubeReadyPromiseRef.current;
+
+    youtubeReadyPromiseRef.current = new Promise((resolve, reject) => {
+      const createPlayer = () => {
+        try {
+          let host = document.getElementById('apmusic-youtube-player');
+          if (!host) {
+            host = document.createElement('div');
+            host.id = 'apmusic-youtube-player';
+            Object.assign(host.style, {
+              position: 'fixed',
+              width: '1px',
+              height: '1px',
+              left: '-2px',
+              top: '-2px',
+              opacity: '0',
+              pointerEvents: 'none',
+            });
+            document.body.appendChild(host);
+          }
+          const player = new (window as any).YT.Player(host, {
+            width: '1',
+            height: '1',
+            videoId: initialVideoId,
+            playerVars: {
+              autoplay: 0,
+              controls: 0,
+              disablekb: 1,
+              playsinline: 1,
+              rel: 0,
+              origin: window.location.origin,
+            },
+            events: {
+              onReady: (event: any) => {
+                youtubePlayerRef.current = event.target;
+                event.target.setVolume(Math.round((isMuted ? 0 : volume) * 100));
+                resolve(event.target);
+              },
+              onStateChange: (event: any) => {
+                const YTState = (window as any).YT?.PlayerState;
+                if (event.data === YTState?.PLAYING) {
+                  setIsLoadingSong(false);
+                  setIsPlaying(true);
+                } else if (event.data === YTState?.BUFFERING) {
+                  setIsLoadingSong(true);
+                } else if (event.data === YTState?.PAUSED) {
+                  setIsPlaying(false);
+                } else if (event.data === YTState?.ENDED) {
+                  setIsPlaying(false);
+                  youtubeEndedHandlerRef.current();
+                }
+              },
+              onError: () => {
+                setIsLoadingSong(false);
+                setIsPlaying(false);
+              },
+            },
+          });
+          youtubePlayerRef.current = player;
+        } catch (error) {
+          youtubeReadyPromiseRef.current = null;
+          reject(error);
+        }
+      };
+
+      const win = window as any;
+      if (win.YT?.Player) {
+        createPlayer();
+        return;
+      }
+      const previousReady = win.onYouTubeIframeAPIReady;
+      win.onYouTubeIframeAPIReady = () => {
+        if (typeof previousReady === 'function') previousReady();
+        createPlayer();
+      };
+      let script = document.getElementById('youtube-iframe-api') as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement('script');
+        script.id = 'youtube-iframe-api';
+        script.src = 'https://www.youtube.com/iframe_api';
+        script.onerror = () => {
+          youtubeReadyPromiseRef.current = null;
+          reject(new Error('YouTube player could not load'));
+        };
+        document.head.appendChild(script);
+      }
+    });
+
+    return youtubeReadyPromiseRef.current;
+  }, [isMuted, volume]);
+
+  const playYoutubeVideo = useCallback(async (youtubeId: string) => {
+    youtubeVideoIdRef.current = youtubeId;
+    const player = await ensureYoutubePlayer(youtubeId);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsLoadingSong(true);
+    player.loadVideoById({ videoId: youtubeId, startSeconds: 0 });
+    player.setVolume(Math.round((isMuted ? 0 : volume) * 100));
+    if (youtubeProgressTimerRef.current) clearInterval(youtubeProgressTimerRef.current);
+    youtubeProgressTimerRef.current = setInterval(() => {
+      try {
+        setCurrentTime(Number(player.getCurrentTime?.() || 0));
+        setDuration(Number(player.getDuration?.() || 0));
+      } catch (_) {}
+    }, 250);
+  }, [ensureYoutubePlayer, isMuted, volume]);
+
+  const pauseYoutubeVideo = () => youtubePlayerRef.current?.pauseVideo?.();
+  const resumeYoutubeVideo = () => youtubePlayerRef.current?.playVideo?.();
 
   // Initialize Web Audio API graph
   const initWebAudio = () => {
@@ -373,6 +504,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       let activeSong = { ...song };
       let playUrl = resolvePlayUrl(activeSong, audioQuality);
+      let embedUrl = activeSong.embedUrl || '';
+      let youtubeId = extractYoutubeId(activeSong);
 
       // If URL is missing or not a direct audio file, hydrate via backend audio stream resolver.
       // Ignore late responses when the user has already selected another song.
@@ -380,21 +513,26 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
           if (song.id) {
             const details = await api.getSongDetails(song.id, song.name, song.primaryArtists);
-            if (details && (details.playUrl || (details.downloadUrl && details.downloadUrl.length > 0))) {
+            if (details) {
               activeSong = { ...details };
               playUrl = resolvePlayUrl(activeSong, audioQuality);
+              embedUrl = activeSong.embedUrl || embedUrl;
+              youtubeId = extractYoutubeId(activeSong) || youtubeId;
             }
           }
 
           if (!playUrl || !isDirectAudio(playUrl)) {
             const streamRes = await api.resolveAudioStream(song.id, song.name, song.primaryArtists);
-            if (streamRes && streamRes.playUrl) {
+            if (streamRes && (streamRes.playUrl || streamRes.embedUrl)) {
               activeSong = {
                 ...activeSong,
-                playUrl: streamRes.playUrl,
-                downloadUrl: streamRes.downloadUrl,
+                ...(streamRes.playUrl ? { playUrl: streamRes.playUrl } : {}),
+                ...(streamRes.downloadUrl ? { downloadUrl: streamRes.downloadUrl } : {}),
+                ...(streamRes.embedUrl ? { embedUrl: streamRes.embedUrl } : {}),
               };
-              playUrl = streamRes.playUrl;
+              playUrl = streamRes.playUrl || playUrl;
+              embedUrl = streamRes.embedUrl || embedUrl;
+              youtubeId = extractYoutubeId(activeSong) || youtubeId;
             }
           }
 
@@ -409,14 +547,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (!isLatestRequest()) return;
 
-      playUrl = toStreamProxyUrl(playUrl);
-      if (!playUrl) {
-        console.error('No playable URL for song:', song.name);
+      playUrl = isDirectAudio(playUrl) ? toStreamProxyUrl(playUrl) : '';
+      youtubeId = youtubeId || extractYoutubeId({ ...activeSong, embedUrl });
+      if (!playUrl && !youtubeId) {
+        console.error('Spotify Primary API returned no playable track identity:', song.name);
         setIsLoadingSong(false);
         return;
       }
 
-      const proxiedUrl = toStreamProxyUrl(playUrl);
+      const proxiedUrl = playUrl ? toStreamProxyUrl(playUrl) : '';
 
       // Update current state with resolved active song only if this is still the latest click.
       if (!isLatestRequest()) return;
@@ -430,7 +569,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         )
       );
 
-      if (audioRef.current) {
+      if (playUrl && audioRef.current) {
+        pauseYoutubeVideo();
         audioRef.current.pause();
         audioRef.current.src = proxiedUrl;
         audioRef.current.load();
@@ -438,20 +578,19 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .play()
           .then(() => setIsPlaying(true))
           .catch((err) => {
-            console.warn('Proxy audio play failed, trying direct stream URL:', err);
-            if (audioRef.current && playUrl) {
-              audioRef.current.src = playUrl;
-              audioRef.current
-                .play()
-                .then(() => setIsPlaying(true))
-                .catch((directErr) => {
-                  console.warn('Direct stream also blocked or interrupted:', directErr);
-                  setIsPlaying(false);
-                });
-            } else {
-              setIsPlaying(false);
-            }
+            console.warn('Spotify direct stream play failed:', err);
+            setIsPlaying(false);
           });
+      } else if (youtubeId) {
+        audioRef.current?.pause();
+        try {
+          await playYoutubeVideo(youtubeId);
+          if (!isLatestRequest()) return;
+        } catch (err) {
+          console.warn('Spotify embed playback failed:', err);
+          setIsLoadingSong(false);
+          setIsPlaying(false);
+        }
       }
 
       // Update MediaSession (iOS / Car / Lock screen info)
@@ -527,30 +666,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentLyricIndex(foundIdx);
   }, [currentTime, lyricsData]);
 
-  // Track Ended Handler
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleEnded = () => {
-      if (repeatMode === 'one') {
-        audio.currentTime = 0;
-        audio.play();
-      } else {
-        nextTrack();
-      }
-    };
-
-    audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
-  }, [repeatMode, queue, queueIndex]);
-
   const togglePlay = () => {
-    if (!audioRef.current || !currentSong) return;
+    if (!currentSong) return;
     if (isPlaying) {
-      audioRef.current.pause();
+      if (youtubeVideoIdRef.current) pauseYoutubeVideo();
+      else audioRef.current?.pause();
       setIsPlaying(false);
-    } else {
+    } else if (youtubeVideoIdRef.current) {
+      resumeYoutubeVideo();
+    } else if (audioRef.current) {
       initWebAudio();
       if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
         audioCtxRef.current.resume();
@@ -560,14 +684,18 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const pause = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
+    if (youtubeVideoIdRef.current) pauseYoutubeVideo();
+    else audioRef.current?.pause();
+    setIsPlaying(false);
   };
 
   const resume = () => {
-    if (audioRef.current && currentSong) {
+    if (!currentSong) return;
+    if (youtubeVideoIdRef.current) {
+      resumeYoutubeVideo();
+      return;
+    }
+    if (audioRef.current) {
       initWebAudio();
       if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
         audioCtxRef.current.resume();
@@ -598,9 +726,39 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [queue, queueIndex, isShuffle, repeatMode, playSong]);
 
+  // Track ended handlers for both direct Spotify audio files and the
+  // Spotify API's YouTube embed identity.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const handleEnded = () => {
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play();
+      } else {
+        nextTrack();
+      }
+    };
+    audio.addEventListener('ended', handleEnded);
+    return () => audio.removeEventListener('ended', handleEnded);
+  }, [repeatMode, nextTrack]);
+
+  useEffect(() => {
+    youtubeEndedHandlerRef.current = () => {
+      if (repeatMode === 'one') {
+        youtubePlayerRef.current?.seekTo?.(0, true);
+        youtubePlayerRef.current?.playVideo?.();
+      } else {
+        nextTrack();
+      }
+    };
+  }, [repeatMode, nextTrack]);
+
   const prevTrack = useCallback(() => {
-    if (currentTime > 3 && audioRef.current) {
-      audioRef.current.currentTime = 0;
+    if (currentTime > 3) {
+      if (youtubeVideoIdRef.current) youtubePlayerRef.current?.seekTo?.(0, true);
+      else if (audioRef.current) audioRef.current.currentTime = 0;
+      setCurrentTime(0);
       return;
     }
     if (queue.length === 0) return;
@@ -618,7 +776,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTime, queue, queueIndex, repeatMode, playSong]);
 
   const seek = (time: number) => {
-    if (audioRef.current) {
+    if (youtubeVideoIdRef.current) {
+      youtubePlayerRef.current?.seekTo?.(time, true);
+      setCurrentTime(time);
+    } else if (audioRef.current) {
       audioRef.current.currentTime = time;
       setCurrentTime(time);
     }

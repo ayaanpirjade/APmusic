@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { searchSongs, SaavnSong } from './saavnService.js';
+import { searchPrimarySongs, SpotifySong } from './primaryMusicService.js';
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -19,7 +19,7 @@ export interface AIDJMixResponse {
   vibeDescription: string;
   tags: string[];
   djIntro: string;
-  songs: SaavnSong[];
+  songs: SpotifySong[];
 }
 
 export async function generateAIDJMix(prompt: string, currentSongName?: string): Promise<AIDJMixResponse> {
@@ -104,10 +104,10 @@ Return ONLY a valid JSON object matching this schema:
   }
 
   // Resolve song queries to actual playable tracks
-  const resolvedSongs: SaavnSong[] = [];
+  const resolvedSongs: SpotifySong[] = [];
   for (const q of trackQueries.slice(0, 10)) {
     try {
-      const results = await searchSongs(q, 1, 2);
+      const results = await searchPrimarySongs(q, 2);
       if (results && results.length > 0) {
         resolvedSongs.push(results[0]);
       }

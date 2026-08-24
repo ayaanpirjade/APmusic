@@ -54,6 +54,7 @@ export const api = {
   async resolveAudioStream(id: string, title?: string, artist?: string): Promise<{
     playUrl: string;
     downloadUrl: { quality: string; url: string }[];
+    embedUrl?: string;
   } | null> {
     const params = new URLSearchParams();
     if (id) params.set('id', id);
