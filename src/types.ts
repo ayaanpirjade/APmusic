@@ -68,6 +68,7 @@ export interface Artist {
   id: string;
   name: string;
   role?: string;
+  type?: string;
   image: SongImage[];
   url?: string;
   bio?: string;
@@ -127,4 +128,40 @@ export interface AIDJMix {
   songs: Song[];
 }
 
-export type NavigationTab = 'home' | 'search' | 'library' | 'spotify' | 'equalizer' | 'settings';
+export interface SoundPad {
+  id: string;
+  name: string;
+  category: 'memes' | 'reactions' | 'effects' | 'gaming' | 'instruments' | 'voices' | 'notifications' | 'favorites';
+  icon: string;
+  duration: string; // e.g. "00:01"
+  color: string; // e.g. "from-blue-500/30 to-indigo-600/30"
+  textColor: string;
+  isFavorite?: boolean;
+  soundType: string;
+  customAudioUrl?: string;
+}
+
+export type SoundCategory = 'all' | 'memes' | 'reactions' | 'effects' | 'gaming' | 'instruments' | 'voices' | 'notifications' | 'favorites';
+
+export interface TenBandEQ {
+  hz31: number;
+  hz62: number;
+  hz125: number;
+  hz250: number;
+  hz500: number;
+  hz1k: number;
+  hz2k: number;
+  hz4k: number;
+  hz8k: number;
+  hz16k: number;
+  preamp: number;
+  bassBoost: number;
+  virtualizer: number;
+  loudness: number;
+  reverb: number;
+  compressor: boolean;
+  enabled: boolean;
+  preset: string;
+}
+
+export type NavigationTab = 'home' | 'search' | 'library' | 'soundboard' | 'profile' | 'settings' | 'equalizer';

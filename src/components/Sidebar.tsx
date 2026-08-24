@@ -13,6 +13,9 @@ import {
   Music,
   LogIn,
   User,
+  HardDrive,
+  Smartphone,
+  Volume2,
 } from 'lucide-react';
 import { NavigationTab } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +28,8 @@ interface SidebarProps {
   onOpenAIDJ: () => void;
   onOpenEQ: () => void;
   onOpenLogin: () => void;
+  onOpenOfflineModal?: () => void;
+  onOpenInstall?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,13 +40,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAIDJ,
   onOpenEQ,
   onOpenLogin,
+  onOpenOfflineModal,
+  onOpenInstall,
 }) => {
   const { user, likedSongs, customPlaylists, offlineDownloadedSongs } = useAuth();
 
   const mainNavItems: Array<{ id: NavigationTab; label: string; icon: any }> = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'search', label: 'Search', icon: Search },
-    { id: 'library', label: 'Your Library', icon: Library },
+    { id: 'library', label: 'Library', icon: Library },
+    { id: 'soundboard', label: 'Soundboard', icon: Volume2 },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -209,6 +218,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <LogIn className="w-4 h-4 text-indigo-400 shrink-0" />
         )}
       </div>
+
+      {/* Install Android APK / PWA */}
+      {onOpenInstall && (
+        <button
+          onClick={onOpenInstall}
+          className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 shadow-md shadow-pink-950/30"
+        >
+          <Smartphone className="w-4 h-4 text-pink-400" />
+          <span>Install Android APK</span>
+        </button>
+      )}
+
+      {/* Offline Mode Manager */}
+      {onOpenOfflineModal && (
+        <button
+          onClick={onOpenOfflineModal}
+          className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 shadow-md shadow-emerald-950/30"
+        >
+          <HardDrive className="w-4 h-4 text-emerald-400" />
+          <span>Offline Mode ({offlineDownloadedSongs.length})</span>
+        </button>
+      )}
 
       {/* Settings Tab */}
       <button

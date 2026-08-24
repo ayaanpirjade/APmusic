@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Play, Flame, Music, Disc3, Mic2, ArrowRight, Radio, RefreshCw } from 'lucide-react';
+import {
+  Sparkles,
+  Play,
+  Flame,
+  Music,
+  Disc3,
+  Mic2,
+  ArrowRight,
+  Radio,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Bell,
+  Heart,
+  ChevronRight,
+} from 'lucide-react';
 import { Song, Playlist, Album, Artist } from '../types';
 import { api } from '../services/api';
 import { SongCard } from './SongCard';
-import { SongRow } from './SongRow';
 import { useAudio } from '../context/AudioContext';
+import { useAuth } from '../context/AuthContext';
 
 interface HomeViewProps {
   onOpenAIDJ: () => void;
@@ -12,7 +27,39 @@ interface HomeViewProps {
   onOpenPlaylist: (playlist: Playlist) => void;
   onOpenArtist: (artist: Artist) => void;
   onOpenAlbum: (album: Album) => void;
+  onOpenSearch?: () => void;
+  onOpenProfile?: () => void;
 }
+
+const HERO_SLIDES = [
+  {
+    id: 'chill-vibes',
+    title: 'Chill Vibes',
+    subtitle: 'Kick back and relax with ambient lo-fi and smooth beats',
+    bgGradient: 'from-indigo-900/60 via-purple-900/40 to-cyan-900/30',
+    coverImg: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&auto=format&fit=crop&q=80',
+    tag: 'Featured Mood',
+    searchQuery: 'Chill Vibes lo-fi ambient relax',
+  },
+  {
+    id: 'top-hits',
+    title: 'Top Hits 2024',
+    subtitle: 'The hottest global and trending chart-toppers right now',
+    bgGradient: 'from-purple-900/60 via-pink-900/40 to-rose-900/30',
+    coverImg: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+    tag: 'Global Charts',
+    searchQuery: 'Top Hits 2024 trending pop',
+  },
+  {
+    id: 'workout-beast',
+    title: 'Workout Beast',
+    subtitle: 'High-energy EDM, phonk, and hip-hop to push your limits',
+    bgGradient: 'from-blue-900/60 via-indigo-900/40 to-teal-900/30',
+    coverImg: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&auto=format&fit=crop&q=80',
+    tag: 'High Energy',
+    searchQuery: 'Workout gym phonk edm motivational',
+  },
+];
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onOpenAIDJ,
@@ -20,24 +67,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenPlaylist,
   onOpenArtist,
   onOpenAlbum,
+  onOpenSearch,
+  onOpenProfile,
 }) => {
   const { playSong } = useAudio();
+  const { user, playHistory } = useAuth();
 
+  const [heroIndex, setHeroIndex] = useState(0);
   const [language, setLanguage] = useState('hindi,english,punjabi');
   const [trendingSongs, setTrendingSongs] = useState<Song[]>([]);
   const [charts, setCharts] = useState<Playlist[]>([]);
   const [featuredPlaylists, setFeaturedPlaylists] = useState<Playlist[]>([]);
   const [topArtists, setTopArtists] = useState<Artist[]>([]);
+  const [recentSongs, setRecentSongs] = useState<Song[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const languagesList = [
-    { id: 'hindi,english,punjabi', label: 'All Hits' },
-    { id: 'hindi', label: 'Bollywood & Hindi' },
-    { id: 'punjabi', label: 'Punjabi Beats' },
-    { id: 'english', label: 'International Pop' },
-    { id: 'telugu,tamil', label: 'South Superhits' },
-  ];
+  // Dynamic Time Greeting (Good Evening, Ayaan 👋)
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  const userName = user?.name ? user.name.split(' ')[0] : 'Ayaan';
 
   const loadData = async (lang: string) => {
     setIsLoading(true);
@@ -48,9 +102,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setCharts(data.charts || []);
       setFeaturedPlaylists(data.playlists || []);
       setTopArtists(data.topArtists || []);
+
+      // If user has play history use it, otherwise fall back to top trending for Recently Played
+      if (playHistory && playHistory.length > 0) {
+        setRecentSongs(playHistory.slice(0, 6));
+      } else if (data.trending && data.trending.length > 0) {
+        setRecentSongs(data.trending.slice(0, 6));
+      }
     } catch (err: any) {
       console.error('Home load error:', err);
-      setError('Could not load trending feeds. Check connection or retry.');
+      setError('Could not load trending feeds.');
     } finally {
       setIsLoading(false);
     }
@@ -60,104 +121,278 @@ export const HomeView: React.FC<HomeViewProps> = ({
     loadData(language);
   }, [language]);
 
-  const handlePlayAllTrending = () => {
-    if (trendingSongs.length > 0) {
-      playSong(trendingSongs[0], trendingSongs);
+  // Auto cycle hero banner
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const activeHero = HERO_SLIDES[heroIndex];
+
+  const handleHeroPlay = async () => {
+    try {
+      const results = await api.searchSongs(activeHero.searchQuery);
+      if (results && results.length > 0) {
+        playSong(results[0], results);
+      } else if (trendingSongs.length > 0) {
+        playSong(trendingSongs[0], trendingSongs);
+      }
+    } catch {
+      if (trendingSongs.length > 0) playSong(trendingSongs[0], trendingSongs);
     }
   };
 
   return (
-    <div className="space-y-8 pb-32 pt-2 animate-in fade-in duration-300 select-none">
-      {/* Hero Banner with iOS Liquid Glass Styling */}
-      <div className="relative overflow-hidden rounded-[32px] p-6 sm:p-10 border border-white/20 bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-pink-900/20 backdrop-blur-2xl shadow-2xl shadow-indigo-950/50 group">
-        {/* Specular Light Blur */}
-        <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-indigo-500/20 blur-[100px] pointer-events-none group-hover:scale-110 transition-transform duration-700" />
-        <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-pink-500/20 blur-[100px] pointer-events-none" />
-
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold tracking-wide uppercase">
-            <Radio className="w-3.5 h-3.5 animate-pulse text-indigo-400" />
-            <span>320 kbps Master Lossless Engine</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight font-['Outfit']">
-            APMUSIC Lossless
+    <div className="space-y-7 pb-36 pt-1 animate-in fade-in duration-300 select-none max-w-7xl mx-auto">
+      {/* 1. Header Greeting & Discover Title matching Mockup */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs sm:text-sm font-medium text-slate-400">
+            {getGreeting()}, <span className="text-white font-bold">{userName}</span> 👋
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-['Outfit'] mt-0.5">
+            Discover
           </h1>
+        </div>
 
-          <p className="text-sm sm:text-base text-slate-300 font-medium leading-relaxed">
-            Experience uncompressed lossless audio streaming, AI-powered mood DJ mixing, Spotify playlist sync, and studio-grade 5-band equalization.
+        <div className="flex items-center gap-3">
+          {/* Notification Bell */}
+          <button
+            onClick={onOpenAIDJ}
+            className="relative p-2.5 rounded-2xl ios-glass-pill hover:bg-white/15 text-slate-300 hover:text-white transition-colors"
+            title="AI DJ & Notifications"
+          >
+            <Bell className="w-4 h-4 text-slate-300" />
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-indigo-500" />
+          </button>
+
+          {/* Profile Avatar */}
+          <button
+            onClick={onOpenProfile}
+            className="w-10 h-10 rounded-2xl overflow-hidden border border-white/20 hover:scale-105 transition-transform shadow-md"
+            title="Open Profile"
+          >
+            <img
+              src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}
+              alt={userName}
+              className="w-full h-full object-cover"
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Large Glass Search Bar matching Mockup */}
+      <div
+        onClick={onOpenSearch}
+        className="relative flex items-center justify-between p-3.5 sm:p-4 rounded-[22px] ios-glass-card border border-white/15 cursor-pointer hover:border-white/30 transition-all group shadow-lg shadow-black/20"
+      >
+        <div className="flex items-center gap-3 text-slate-400 group-hover:text-slate-200">
+          <Search className="w-5 h-5 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+          <span className="text-sm font-medium">Search songs, artists, albums, sound effects...</span>
+        </div>
+        <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 group-hover:text-white">
+          <SlidersHorizontal className="w-4 h-4" />
+        </div>
+      </div>
+
+      {/* 3. Hero Carousel Banner matching Mockup ("Chill Vibes - Kick back and relax") */}
+      <div className="relative overflow-hidden rounded-[30px] p-6 sm:p-9 border border-white/20 shadow-2xl backdrop-blur-3xl group">
+        {/* Background Image with Dark Gradient Tint */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src={activeHero.coverImg}
+            alt={activeHero.title}
+            className="w-full h-full object-cover opacity-35 scale-105 group-hover:scale-110 transition-transform duration-1000"
+          />
+          <div className={`absolute inset-0 bg-gradient-to-r ${activeHero.bgGradient} mix-blend-multiply`} />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#070913] via-transparent to-transparent" />
+        </div>
+
+        {/* Ambient Specular Blur */}
+        <div className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-indigo-500/30 blur-[90px] pointer-events-none" />
+
+        <div className="relative z-10 max-w-xl space-y-3 sm:space-y-4">
+          <span className="inline-block px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-extrabold uppercase tracking-wider text-indigo-200">
+            {activeHero.tag}
+          </span>
+
+          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight font-['Outfit']">
+            {activeHero.title}
+          </h2>
+
+          <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
+            {activeHero.subtitle}
           </p>
 
-          {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="pt-1 flex items-center gap-3">
             <button
-              onClick={handlePlayAllTrending}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white text-black font-bold text-sm shadow-xl hover:scale-105 active:scale-95 transition-all"
+              onClick={handleHeroPlay}
+              className="flex items-center gap-2 px-6 py-2.5 sm:py-3 rounded-2xl bg-white text-black font-extrabold text-xs sm:text-sm shadow-xl hover:scale-105 active:scale-95 transition-all"
             >
               <Play className="w-4 h-4 fill-black ml-0.5" />
-              <span>Play Top Hits</span>
+              <span>Play</span>
             </button>
 
             <button
               onClick={onOpenAIDJ}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl ios-glass-pill hover:bg-white/20 text-white font-bold text-sm transition-all hover:scale-105 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2.5 sm:py-3 rounded-2xl ios-glass-pill hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-all"
             >
               <Sparkles className="w-4 h-4 text-indigo-400" />
-              <span>AI Mood DJ</span>
-            </button>
-
-            <button
-              onClick={onOpenSpotifyModal}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-emerald-300 font-bold text-sm transition-all hover:scale-105 active:scale-95"
-            >
-              <Music className="w-4 h-4 text-emerald-400" />
-              <span>Import Spotify URL</span>
+              <span>AI DJ Mix</span>
             </button>
           </div>
         </div>
+
+        {/* Pagination Dots matching Mockup */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+          {HERO_SLIDES.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setHeroIndex(idx)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                heroIndex === idx ? 'w-6 bg-white' : 'w-1.5 bg-white/30 hover:bg-white/60'
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Language Filter Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {languagesList.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setLanguage(item.id)}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
-              language === item.id
-                ? 'bg-indigo-600/40 text-white border border-indigo-400/40 shadow-lg shadow-indigo-500/20 scale-105'
-                : 'ios-glass-pill text-slate-300 hover:text-white'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-
-        <button
-          onClick={() => loadData(language)}
-          className="p-2 rounded-2xl ios-glass-pill text-slate-400 hover:text-white ml-auto"
-          title="Refresh Feed"
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* SECTION 1: Trending Now Grid */}
-      <section className="space-y-4">
+      {/* 4. Featured Playlists matching Mockup */}
+      <section className="space-y-3.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-              <Flame className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-white tracking-tight">Trending Lossless Hits</h2>
-              <p className="text-xs text-slate-400">Streamed directly in 320 kbps high-fidelity</p>
-            </div>
-          </div>
-
+          <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+            Featured Playlists
+          </h2>
           <button
-            onClick={handlePlayAllTrending}
-            className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 hover:text-indigo-200 transition-colors"
+            onClick={onOpenSearch}
+            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            <span>See All</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+          {(featuredPlaylists.length > 0
+            ? featuredPlaylists.slice(0, 6)
+            : charts.slice(0, 6)
+          ).map((playlist) => {
+            const coverUrl =
+              playlist.image?.[2]?.url ||
+              playlist.image?.[1]?.url ||
+              playlist.image?.[0]?.url ||
+              'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80';
+
+            return (
+              <div
+                key={playlist.id}
+                onClick={() => onOpenPlaylist(playlist)}
+                className="group p-3 rounded-[24px] ios-glass-card border border-white/10 cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:border-white/30 hover:shadow-xl flex flex-col justify-between"
+              >
+                <div className="relative aspect-square w-full rounded-[18px] overflow-hidden shadow-md bg-white/5">
+                  <img
+                    src={coverUrl}
+                    alt={playlist.name}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 rounded-[18px] ring-1 ring-inset ring-white/15 pointer-events-none" />
+                </div>
+                <div className="mt-2.5">
+                  <h3 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
+                    {playlist.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {playlist.songCount || '25'} Tracks
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 5. Recently Played List matching Mockup */}
+      <section className="space-y-3.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+            Recently Played
+          </h2>
+          <button
+            onClick={onOpenSearch}
+            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            <span>See All</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {recentSongs.slice(0, 4).map((song) => {
+            const coverUrl =
+              song.image?.[1]?.url ||
+              song.image?.[0]?.url ||
+              'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80';
+
+            return (
+              <div
+                key={song.id}
+                onClick={() => playSong(song, recentSongs)}
+                className="group flex items-center justify-between p-2.5 sm:p-3 rounded-2xl ios-glass-card border border-white/10 hover:border-white/25 cursor-pointer transition-all duration-200 hover:scale-[1.01]"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="relative w-11 h-11 rounded-xl overflow-hidden shadow-md shrink-0">
+                    <img
+                      src={coverUrl}
+                      alt={song.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
+                      {song.name}
+                    </h3>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">
+                      {song.primaryArtists}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    playSong(song, recentSongs);
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white shrink-0 ml-2 group-hover:bg-white group-hover:text-black transition-all"
+                  title="Play"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 6. Trending Songs Grid */}
+      <section className="space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flame className="w-4 h-4 text-indigo-400" />
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+              Trending for You
+            </h2>
+          </div>
+          <button
+            onClick={() => {
+              if (trendingSongs.length > 0) playSong(trendingSongs[0], trendingSongs);
+            }}
+            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
           >
             <span>Play All</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -165,8 +400,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="p-3 rounded-[24px] ios-glass-card space-y-3 animate-pulse">
                 <div className="aspect-square w-full rounded-[18px] bg-white/10" />
                 <div className="h-4 bg-white/10 rounded-md w-3/4" />
@@ -174,137 +409,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             ))}
           </div>
-        ) : trendingSongs.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {trendingSongs.map((song) => (
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {trendingSongs.slice(0, 6).map((song) => (
               <SongCard key={song.id} song={song} playlistContext={trendingSongs} />
             ))}
           </div>
-        ) : (
-          <div className="py-12 text-center text-slate-400 ios-glass rounded-3xl">
-            <Music className="w-8 h-8 mx-auto mb-2 text-slate-500" />
-            <p className="text-sm">No trending songs found in this category.</p>
-          </div>
         )}
       </section>
-
-      {/* SECTION 2: Top Charts & Playlists */}
-      {charts.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-              <Disc3 className="w-4 h-4 text-purple-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-white tracking-tight">Top Charts & Playlists</h2>
-              <p className="text-xs text-slate-400">Weekly rankings, viral hits, and editor collections</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {charts.map((chart) => {
-              const coverUrl =
-                chart.image?.[2]?.url ||
-                chart.image?.[1]?.url ||
-                chart.image?.[0]?.url ||
-                'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80';
-              return (
-                <div
-                  key={chart.id}
-                  onClick={() => onOpenPlaylist(chart)}
-                  className="group p-3 rounded-[24px] ios-glass-card cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:border-white/30 flex flex-col justify-between"
-                >
-                  <div className="relative aspect-square w-full rounded-[18px] overflow-hidden shadow-md bg-white/5">
-                    <img
-                      src={coverUrl}
-                      alt={chart.name}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 rounded-[18px] ring-1 ring-inset ring-white/15 pointer-events-none" />
-                  </div>
-                  <div className="mt-3">
-                    <h3 className="text-sm font-bold text-white truncate group-hover:text-purple-300 transition-colors">
-                      {chart.name}
-                    </h3>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">
-                      {chart.songCount} Tracks
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* SECTION 3: Featured Artists Showcase */}
-      {topArtists.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
-              <Mic2 className="w-4 h-4 text-pink-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-white tracking-tight">Popular Artists</h2>
-              <p className="text-xs text-slate-400">Explore top tracks and albums from iconic singers</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-4">
-            {topArtists.map((artist) => {
-              const coverUrl =
-                artist.image?.[2]?.url ||
-                artist.image?.[1]?.url ||
-                artist.image?.[0]?.url ||
-                'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
-              return (
-                <div
-                  key={artist.id}
-                  onClick={() => onOpenArtist(artist)}
-                  className="group flex flex-col items-center text-center cursor-pointer p-2 rounded-2xl hover:bg-white/5 transition-all"
-                >
-                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden shadow-xl border-2 border-white/20 group-hover:border-indigo-400/60 group-hover:scale-105 transition-all duration-300">
-                    <img
-                      src={coverUrl}
-                      alt={artist.name}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <h4 className="text-xs sm:text-sm font-bold text-white mt-2 truncate w-full group-hover:text-indigo-300 transition-colors">
-                    {artist.name}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 truncate w-full">{artist.role || 'Artist'}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* SECTION 4: Quick Top Songs Feed */}
-      {trendingSongs.length > 6 && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold text-white tracking-tight">Quick Stream Playlist</h2>
-            <span className="text-xs text-slate-400">Click to listen instantly</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {trendingSongs.slice(0, 10).map((song, idx) => (
-              <SongRow
-                key={`home-row-${song.id}-${idx}`}
-                song={song}
-                index={idx}
-                playlistContext={trendingSongs}
-              />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 };

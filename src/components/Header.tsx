@@ -9,9 +9,16 @@ import {
   ArrowDownToLine,
   Music2,
   Radio,
+  HardDrive,
+  Smartphone,
+  Sun,
+  Moon,
+  Laptop,
 } from 'lucide-react';
+import { APLogo } from './APLogo';
 import { useAuth } from '../context/AuthContext';
 import { useAudio } from '../context/AudioContext';
+import { useAppTheme } from '../context/ThemeContext';
 import { NavigationTab, AudioQualitySetting } from '../types';
 
 interface HeaderProps {
@@ -21,6 +28,8 @@ interface HeaderProps {
   onOpenSpotifyModal: () => void;
   onOpenEQModal: () => void;
   onOpenLogin: () => void;
+  onOpenOfflineModal?: () => void;
+  onOpenInstall?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,11 +39,14 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSpotifyModal,
   onOpenEQModal,
   onOpenLogin,
+  onOpenOfflineModal,
+  onOpenInstall,
 }) => {
-  const { user, loginWithGooglePopup, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { audioQuality, setAudioQuality } = useAudio();
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const { theme, systemTheme, resolvedTheme, setTheme, toggleTheme } = useAppTheme();
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   const qualities: Array<{ id: AudioQualitySetting; label: string; desc: string }> = [
     { id: '320kbps', label: 'Extreme 320 kbps', desc: 'Ultra Hi-Res Lossless Audio' },
@@ -43,27 +55,14 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-30 w-full px-4 sm:px-8 py-3.5 backdrop-blur-2xl bg-[#07090e]/60 border-b border-white/10 transition-all duration-300">
+    <header className="sticky top-0 z-30 w-full px-4 sm:px-8 py-3.5 backdrop-blur-2xl bg-inherit/60 border-b border-white/10 transition-all duration-300">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Brand Logo & Name */}
         <div
           onClick={() => setCurrentTab('home')}
-          className="flex items-center gap-3 cursor-pointer group select-none"
+          className="cursor-pointer group select-none"
         >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 border border-white/20 group-hover:scale-105 transition-transform duration-300">
-            <Music2 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent font-['Outfit']">
-                APMUSIC
-              </span>
-              <span className="text-[10px] uppercase font-black tracking-widest px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Lossless
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-medium hidden sm:block">Lossless Master Audio Engine</p>
-          </div>
+          <APLogo size="md" showText={true} />
         </div>
 
         {/* Center Quick Search Trigger */}
@@ -80,23 +79,129 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Install APK / App Button */}
+          {onOpenInstall && (
+            <button
+              onClick={onOpenInstall}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-400 text-xs font-bold transition-all hover:scale-105 shadow-md shadow-pink-950/30"
+              title="Install Android App / Download APK"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-pink-400" />
+              <span className="hidden sm:inline">Install APK</span>
+            </button>
+          )}
+
+          {/* Offline Cache Button */}
+          {onOpenOfflineModal && (
+            <button
+              onClick={onOpenOfflineModal}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all hover:scale-105 shadow-md shadow-emerald-950/30"
+              title="IndexedDB Offline Music Manager"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden lg:inline">Offline</span>
+            </button>
+          )}
+
           {/* AI DJ Button */}
           <button
             onClick={onOpenAIDJ}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 border border-indigo-400/30 text-indigo-200 text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-md shadow-indigo-950/40"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 border border-indigo-400/30 text-indigo-300 text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-md shadow-indigo-950/40"
           >
             <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-            <span className="hidden sm:inline">AI DJ Vibe</span>
+            <span className="hidden md:inline">AI DJ</span>
           </button>
 
           {/* Spotify Importer Quick Button */}
           <button
             onClick={onOpenSpotifyModal}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105"
           >
             <ArrowDownToLine className="w-4 h-4 text-emerald-400" />
-            <span className="hidden md:inline">Import Spotify</span>
+            <span className="hidden lg:inline">Import Spotify</span>
           </button>
+
+          {/* System OS Theme Switcher Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowThemeMenu((prev) => !prev)}
+              className="p-2 rounded-2xl ios-glass-pill hover:bg-white/15 text-slate-300 hover:text-white transition-colors"
+              title={`Theme: ${theme === 'system' ? `Auto (OS: ${systemTheme})` : theme}`}
+            >
+              {theme === 'system' ? (
+                <Laptop className="w-4 h-4 text-indigo-400" />
+              ) : resolvedTheme === 'dark' ? (
+                <Moon className="w-4 h-4 text-indigo-400" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-500" />
+              )}
+            </button>
+
+            {showThemeMenu && (
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl ios-glass-dock border border-white/20 p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Theme Mode</span>
+                  <span className="text-[9px] font-normal normal-case text-indigo-400">OS: {systemTheme}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setTheme('system');
+                    setShowThemeMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-colors ${
+                    theme === 'system'
+                      ? 'bg-indigo-600/30 text-white font-semibold'
+                      : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Laptop className="w-3.5 h-3.5 text-indigo-400" />
+                    <div>
+                      <div>System OS (Auto)</div>
+                      <div className="text-[10px] text-slate-400">Syncs with device</div>
+                    </div>
+                  </div>
+                  {theme === 'system' && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setTheme('dark');
+                    setShowThemeMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-indigo-600/30 text-white font-semibold'
+                      : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Dark Mode</span>
+                  </div>
+                  {theme === 'dark' && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setTheme('light');
+                    setShowThemeMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-colors ${
+                    theme === 'light'
+                      ? 'bg-indigo-600/30 text-white font-semibold'
+                      : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Light Mode</span>
+                  </div>
+                  {theme === 'light' && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Audio Quality Badge Dropdown */}
           <div className="relative">
@@ -146,7 +251,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Sliders className="w-4 h-4" />
           </button>
 
-          {/* User Profile & Google OAuth */}
+          {/* User Profile & Account */}
           <div className="relative">
             {user?.isAuthenticated ? (
               <button
@@ -177,3 +282,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

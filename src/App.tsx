@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { AudioProvider } from './context/AudioContext';
+import { ThemeProvider, useAppTheme } from './context/ThemeContext';
 import { LiquidMeshBackground } from './components/LiquidMeshBackground';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -11,6 +12,7 @@ import { HomeView } from './components/HomeView';
 import { SearchView } from './components/SearchView';
 import { LibraryView } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
+import { SoundboardView } from './components/SoundboardView';
 import { AIDJModal } from './components/AIDJModal';
 import { SpotifyImportModal } from './components/SpotifyImportModal';
 import { EqualizerModal } from './components/EqualizerModal';
@@ -19,9 +21,12 @@ import { ArtistModal } from './components/ArtistModal';
 import { AlbumModal } from './components/AlbumModal';
 import { CreatePlaylistModal } from './components/CreatePlaylistModal';
 import { LoginModal } from './components/LoginModal';
+import { OfflineModeModal } from './components/OfflineModeModal';
+import { InstallModal } from './components/InstallModal';
 import { NavigationTab, Playlist, Artist, Album } from './types';
 
 function MainLayout() {
+  const { resolvedTheme } = useAppTheme();
   const [currentTab, setCurrentTab] = useState<NavigationTab>('home');
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   const [fullPlayerTab, setFullPlayerTab] = useState<'cover' | 'lyrics' | 'queue'>('cover');
@@ -30,6 +35,8 @@ function MainLayout() {
   const [isEQModalOpen, setIsEQModalOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   // Active Modals for viewing specific collections
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
@@ -42,7 +49,11 @@ function MainLayout() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#07090e] text-slate-100 font-['Plus_Jakarta_Sans'] antialiased selection:bg-indigo-500 selection:text-white flex flex-col overflow-x-hidden">
+    <div
+      className={`relative min-h-screen font-['Plus_Jakarta_Sans'] antialiased selection:bg-indigo-500 selection:text-white flex flex-col overflow-x-hidden transition-colors duration-500 ${
+        resolvedTheme === 'light' ? 'bg-[#f2f5fa] text-slate-900' : 'bg-[#07090e] text-slate-100'
+      }`}
+    >
       {/* Dynamic Ambient Liquid Mesh Background */}
       <LiquidMeshBackground />
 
@@ -54,6 +65,8 @@ function MainLayout() {
         onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
         onOpenEQModal={() => setIsEQModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
+        onOpenInstall={() => setIsInstallModalOpen(true)}
       />
 
       {/* Main Content Layout with Desktop Sidebar */}
@@ -66,6 +79,8 @@ function MainLayout() {
           onOpenAIDJ={() => setIsAIDJOpen(true)}
           onOpenEQ={() => setIsEQModalOpen(true)}
           onOpenLogin={() => setIsLoginModalOpen(true)}
+          onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
+          onOpenInstall={() => setIsInstallModalOpen(true)}
         />
 
         {/* Dynamic Main Viewport */}
@@ -90,16 +105,21 @@ function MainLayout() {
 
           {currentTab === 'library' && (
             <LibraryView
-              onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+              onCreatePlaylistModal={() => setIsCreatePlaylistOpen(true)}
               onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
               onOpenPlaylist={(pl) => setSelectedPlaylist(pl)}
+              onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
             />
           )}
 
-          {currentTab === 'settings' && (
+          {currentTab === 'soundboard' && <SoundboardView />}
+
+          {(currentTab === 'settings' || currentTab === 'profile') && (
             <SettingsView
               onOpenEQ={() => setIsEQModalOpen(true)}
               onOpenLogin={() => setIsLoginModalOpen(true)}
+              onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
+              onOpenInstall={() => setIsInstallModalOpen(true)}
             />
           )}
         </main>
@@ -165,16 +185,30 @@ function MainLayout() {
         isOpen={isCreatePlaylistOpen}
         onClose={() => setIsCreatePlaylistOpen(false)}
       />
+
+      {/* IndexedDB Offline Mode Manager Modal */}
+      <OfflineModeModal
+        isOpen={isOfflineModalOpen}
+        onClose={() => setIsOfflineModalOpen(false)}
+      />
+
+      {/* Standalone Android App / APK Install Modal */}
+      <InstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+      />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AudioProvider>
-        <MainLayout />
-      </AudioProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AudioProvider>
+          <MainLayout />
+        </AudioProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

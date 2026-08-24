@@ -1,4 +1,5 @@
 import CryptoJS from 'crypto-js';
+import { searchFallenFallbackSongs, resolveFallenTrack, getFallenTrackDetails } from './fallenService.js';
 
 const DEV_ANAND_KEY = process.env.DEV_ANAND_API_KEY || 'ak_live_21Iha3Klnc6nlFCqN_-XwxWt_wcYFX271YK1clZ9fmE';
 const DEV_ANAND_BASE = 'https://api.dev-anand.workers.dev';
@@ -278,32 +279,52 @@ async function fetchJio(params: Record<string, string | number>): Promise<any> {
 }
 
 export async function searchSongs(query: string, page = 1, limit = 20): Promise<SaavnSong[]> {
+  let primaryResults: SaavnSong[] = [];
+
   // Try Dev Anand Worker API first
   try {
     const encoded = encodeURIComponent(query);
     const workerRes = await fetchWorker(`/api/search/songs?query=${encoded}&page=${page}&limit=${limit}`);
-    if (workerRes.success && workerRes.data?.results) {
-      return workerRes.data.results.map((r: any) => formatWorkerSongPayload(r));
+    if (workerRes.success && workerRes.data?.results && workerRes.data.results.length > 0) {
+      primaryResults = workerRes.data.results.map((r: any) => formatWorkerSongPayload(r));
     }
   } catch (err) {
     console.warn('Worker searchSongs error, falling back to JioSaavn:', err);
   }
 
-  // Fallback to JioSaavn
-  try {
-    const data = await fetchJio({
-      __call: 'search.getResults',
-      q: query,
-      p: page,
-      n: limit,
-    });
+  // Fallback to JioSaavn if worker had no results
+  if (primaryResults.length === 0) {
+    try {
+      const data = await fetchJio({
+        __call: 'search.getResults',
+        q: query,
+        p: page,
+        n: limit,
+      });
 
-    const results = data.results || [];
-    return results.map((r: any) => formatSongPayload(r));
-  } catch (err) {
-    console.error('searchSongs fallback error:', err);
-    return [];
+      const results = data.results || [];
+      if (results.length > 0) {
+        primaryResults = results.map((r: any) => formatSongPayload(r));
+      }
+    } catch (err) {
+      console.warn('JioSaavn searchSongs error:', err);
+    }
   }
+
+  // If both primary methods returned 0 results, trigger Fallen API Fallback
+  if (primaryResults.length === 0) {
+    try {
+      console.log(`[Fallen API Fallback] Searching fallback provider for query: "${query}"`);
+      const fallenResults = await searchFallenFallbackSongs(query, limit);
+      if (fallenResults.length > 0) {
+        return fallenResults;
+      }
+    } catch (fallbackErr) {
+      console.error('Fallen API searchSongs fallback error:', fallbackErr);
+    }
+  }
+
+  return primaryResults;
 }
 
 export async function searchAll(query: string): Promise<{
@@ -404,6 +425,17 @@ export async function searchAll(query: string): Promise<{
 export async function getSongById(id: string): Promise<SaavnSong | null> {
   if (!id) return null;
 
+  // If this is a fallen fallback song id
+  if (id.startsWith('fallen_')) {
+    try {
+      const cleanQuery = id.replace(/^fallen_[a-z]+_/i, '').replace(/_/g, ' ');
+      const resolved = await resolveFallenTrack(cleanQuery);
+      if (resolved) return resolved;
+    } catch (err) {
+      console.warn('getSongById fallen prefix resolution error:', err);
+    }
+  }
+
   // Try Dev Anand Worker API first
   try {
     const workerRes = await fetchWorker(`/api/songs/${id}`);
@@ -435,13 +467,21 @@ export async function getSongById(id: string): Promise<SaavnSong | null> {
     console.error(`getSongById(${id}) error:`, err);
   }
 
-  // Final fallback: search by id/title
+  // Fallback to search by id/title
   try {
     const searchRes = await searchSongs(id, 1, 1);
     if (searchRes.length > 0) {
       return searchRes[0];
     }
   } catch (_) {}
+
+  // Final fallback to Fallen API track resolver
+  try {
+    const fallenResolved = await resolveFallenTrack(id);
+    if (fallenResolved) return fallenResolved;
+  } catch (err) {
+    console.error('getSongById final fallen fallback error:', err);
+  }
 
   return null;
 }

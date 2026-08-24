@@ -204,66 +204,32 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
       />
 
       <div className="relative max-w-2xl w-full mx-auto flex-1 flex flex-col justify-between py-2">
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between w-full">
+        {/* Top Header Bar Matching Mockup */}
+        <div className="flex items-center justify-between w-full px-2">
           <button
             onClick={onClose}
-            className="w-11 h-11 rounded-2xl ios-glass-pill flex items-center justify-center text-slate-300 hover:text-white transition-transform active:scale-90"
+            className="w-10 h-10 rounded-2xl ios-glass-pill flex items-center justify-center text-slate-300 hover:text-white transition-transform active:scale-90"
             title="Minimize"
           >
-            <ChevronDown className="w-6 h-6" />
+            <ChevronDown className="w-5 h-5" />
           </button>
 
-          {/* Segmented Mode Tabs (Artwork / Lyrics / Queue) */}
-          <div className="flex items-center p-1 rounded-2xl ios-glass-pill border border-white/15">
-            <button
-              onClick={() => setActiveTab('cover')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === 'cover'
-                  ? 'bg-white/20 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Disc3 className="w-3.5 h-3.5" />
-              <span>Track</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('lyrics');
-                if (!lyricsData && !isLoadingLyrics && currentSong) {
-                  fetchLyrics(currentSong);
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === 'lyrics'
-                  ? 'bg-white/20 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Mic2 className="w-3.5 h-3.5" />
-              <span>Lyrics</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('queue')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                activeTab === 'queue'
-                  ? 'bg-white/20 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <ListMusic className="w-3.5 h-3.5" />
-              <span>Queue ({queue.length})</span>
-            </button>
+          <div className="text-center">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Playing From
+            </span>
+            <h4 className="text-xs sm:text-sm font-bold text-white truncate max-w-[200px]">
+              {currentSong.album?.name || 'Chill Vibes'}
+            </h4>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Share / Copy */}
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={handleShare}
-              className="w-11 h-11 rounded-2xl ios-glass-pill flex items-center justify-center text-slate-300 hover:text-white transition-transform active:scale-90"
-              title="Share Track"
+              onClick={() => setShowQualityModal(true)}
+              className="w-10 h-10 rounded-2xl ios-glass-pill flex items-center justify-center text-slate-300 hover:text-white transition-transform active:scale-90"
+              title="More Options"
             >
-              <Share2 className="w-4 h-4" />
+              <Radio className="w-4 h-4 text-indigo-400" />
             </button>
           </div>
         </div>
@@ -497,15 +463,15 @@ export const FullPlayerModal: React.FC<FullPlayerModalProps> = ({
               <SkipBack className="w-7 h-7 fill-slate-200" />
             </button>
 
-            {/* Main Big Play/Pause Button */}
+            {/* Main Big Glowing Play/Pause Button */}
             <button
               onClick={togglePlay}
-              className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white text-black flex items-center justify-center shadow-[0_10px_30px_rgba(255,255,255,0.3)] hover:scale-105 active:scale-95 transition-transform"
+              className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-500 text-white flex items-center justify-center shadow-[0_10px_35px_rgba(139,92,246,0.6)] hover:scale-105 active:scale-95 transition-all border border-purple-300/40"
             >
               {isPlaying ? (
-                <Pause className="w-8 h-8 fill-black" />
+                <Pause className="w-8 h-8 fill-white" />
               ) : (
-                <Play className="w-8 h-8 fill-black ml-1" />
+                <Play className="w-8 h-8 fill-white ml-1" />
               )}
             </button>
 
