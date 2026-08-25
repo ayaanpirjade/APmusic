@@ -122,14 +122,6 @@ export interface SpotifyPreset {
   coverImage: string;
 }
 
-export interface AIDJMix {
-  vibeTitle: string;
-  vibeDescription: string;
-  tags: string[];
-  djIntro: string;
-  songs: Song[];
-}
-
 export interface SoundPad {
   id: string;
   name: string;

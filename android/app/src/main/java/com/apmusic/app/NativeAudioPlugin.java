@@ -1,9 +1,14 @@
 package com.apmusic.app;
 
+import android.app.DownloadManager;
+import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Environment;
 
 import androidx.core.content.ContextCompat;
 
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -71,5 +76,59 @@ public class NativeAudioPlugin extends Plugin {
     @PluginMethod
     public void getStatus(PluginCall call) {
         call.resolve(NativeAudioService.getStatus());
+    }
+
+    @PluginMethod
+    public void download(PluginCall call) {
+        String url = call.getString("url", "");
+        String filename = call.getString("filename", "APMUSIC-track.m4a");
+        String mimeType = call.getString("mimeType", "audio/mp4");
+        if (url.isEmpty()) {
+            call.reject("A direct audio URL is required");
+            return;
+        }
+        try {
+            String safeFilename = filename.replaceAll("[^a-zA-Z0-9._ -]", "_");
+            if (!safeFilename.contains(".")) safeFilename += ".m4a";
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            request.setTitle(safeFilename);
+            request.setDescription("Downloading from APMUSIC");
+            request.setMimeType(mimeType);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(true);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, safeFilename);
+            DownloadManager manager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager == null) {
+                call.reject("Android DownloadManager is unavailable");
+                return;
+            }
+            long downloadId = manager.enqueue(request);
+            JSObject result = new JSObject();
+            result.put("downloadId", downloadId);
+            result.put("filename", safeFilename);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Native download failed", error);
+        }
+    }
+
+    @PluginMethod
+    public void resolveYoutube(PluginCall call) {
+        String youtubeId = call.getString("youtubeId", "");
+        if (youtubeId.isEmpty()) {
+            call.reject("A YouTube ID is required");
+            return;
+        }
+        getBridge().getActivity().runOnUiThread(() -> {
+            java.util.concurrent.Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    JSObject result = NativeYoutubeExtractor.resolve(youtubeId);
+                    getBridge().getActivity().runOnUiThread(() -> call.resolve(result));
+                } catch (Exception error) {
+                    getBridge().getActivity().runOnUiThread(() -> call.reject("Device-side YouTube resolve failed", error));
+                }
+            });
+        });
     }
 }

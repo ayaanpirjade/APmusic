@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
   Search,
   Sliders,
   LogIn,
@@ -24,7 +23,6 @@ import { NavigationTab, AudioQualitySetting } from '../types';
 interface HeaderProps {
   currentTab: NavigationTab;
   setCurrentTab: (tab: NavigationTab) => void;
-  onOpenAIDJ: () => void;
   onOpenSpotifyModal: () => void;
   onOpenEQModal: () => void;
   onOpenLogin: () => void;
@@ -35,7 +33,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   setCurrentTab,
-  onOpenAIDJ,
   onOpenSpotifyModal,
   onOpenEQModal,
   onOpenLogin,
@@ -104,15 +101,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden lg:inline">Offline</span>
             </button>
           )}
-
-          {/* AI DJ Button */}
-          <button
-            onClick={onOpenAIDJ}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 border border-indigo-400/30 text-indigo-300 text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-md shadow-indigo-950/40"
-          >
-            <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-            <span className="hidden md:inline">AI DJ</span>
-          </button>
 
           {/* Spotify Importer Quick Button */}
           <button

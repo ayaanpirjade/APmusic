@@ -29,7 +29,6 @@ import { soundEngine } from '../services/soundboardAudio';
 import { getAccentForTrack } from '../utils/accentColor';
 
 interface HomeViewProps {
-  onOpenAIDJ: () => void;
   onOpenSpotifyModal: () => void;
   onOpenPlaylist: (playlist: Playlist) => void;
   onOpenArtist: (artist: Artist) => void;
@@ -132,7 +131,6 @@ const LANGUAGES = [
 ];
 
 export const HomeView: React.FC<HomeViewProps> = ({
-  onOpenAIDJ,
   onOpenSpotifyModal,
   onOpenPlaylist,
   onOpenArtist,
@@ -240,14 +238,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={onOpenAIDJ}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl glass-pill hover:bg-white/15 text-indigo-300 text-xs font-bold border border-indigo-500/30 hover:scale-105 transition-all shadow-md shadow-indigo-950/40"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-            <span>AI DJ</span>
-          </button>
-
           {onOpenProfile && (
             <button
               onClick={onOpenProfile}
@@ -342,13 +332,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <span>Play Now</span>
               </button>
 
-              <button
-                onClick={onOpenAIDJ}
-                className="flex items-center gap-2 px-4 py-3 rounded-2xl glass-pill hover:bg-white/20 text-white font-bold text-xs sm:text-sm transition-all"
-              >
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                <span>AI Remix</span>
-              </button>
             </div>
           </div>
         </div>

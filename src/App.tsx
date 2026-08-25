@@ -13,7 +13,6 @@ import { SearchView } from './components/SearchView';
 import { LibraryView } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { SoundboardView } from './components/SoundboardView';
-import { AIDJModal } from './components/AIDJModal';
 import { SpotifyImportModal } from './components/SpotifyImportModal';
 import { EqualizerModal } from './components/EqualizerModal';
 import { PlaylistModal } from './components/PlaylistModal';
@@ -30,7 +29,6 @@ function MainLayout() {
   const [currentTab, setCurrentTab] = useState<NavigationTab>('home');
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   const [fullPlayerTab, setFullPlayerTab] = useState<'cover' | 'lyrics' | 'queue'>('cover');
-  const [isAIDJOpen, setIsAIDJOpen] = useState(false);
   const [isSpotifyModalOpen, setIsSpotifyModalOpen] = useState(false);
   const [isEQModalOpen, setIsEQModalOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
@@ -61,7 +59,6 @@ function MainLayout() {
       <Header
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        onOpenAIDJ={() => setIsAIDJOpen(true)}
         onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
         onOpenEQModal={() => setIsEQModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
@@ -76,8 +73,7 @@ function MainLayout() {
           setCurrentTab={setCurrentTab}
           onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
           onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
-          onOpenAIDJ={() => setIsAIDJOpen(true)}
-          onOpenEQ={() => setIsEQModalOpen(true)}
+            onOpenEQ={() => setIsEQModalOpen(true)}
           onOpenLogin={() => setIsLoginModalOpen(true)}
           onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
           onOpenInstall={() => setIsInstallModalOpen(true)}
@@ -87,8 +83,7 @@ function MainLayout() {
         <main className="flex-1 w-full min-w-0 p-4 sm:p-6 lg:p-8">
           {currentTab === 'home' && (
             <HomeView
-              onOpenAIDJ={() => setIsAIDJOpen(true)}
-              onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
+                    onOpenSpotifyModal={() => setIsSpotifyModalOpen(true)}
               onOpenPlaylist={(pl) => setSelectedPlaylist(pl)}
               onOpenArtist={(art) => setSelectedArtist(art)}
               onOpenAlbum={(alb) => setSelectedAlbum(alb)}
@@ -119,7 +114,6 @@ function MainLayout() {
 
           {(currentTab === 'settings' || currentTab === 'profile') && (
             <SettingsView
-              onOpenEQ={() => setIsEQModalOpen(true)}
               onOpenLogin={() => setIsLoginModalOpen(true)}
               onOpenOfflineModal={() => setIsOfflineModalOpen(true)}
               onOpenInstall={() => setIsInstallModalOpen(true)}
@@ -158,9 +152,6 @@ function MainLayout() {
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
       />
-
-      {/* Gemini AI DJ Modal */}
-      <AIDJModal isOpen={isAIDJOpen} onClose={() => setIsAIDJOpen(false)} />
 
       {/* Spotify Lossless Importer Modal */}
       <SpotifyImportModal

@@ -1,4 +1,4 @@
-import { Song, Album, Playlist, Artist, LyricsData, SpotifyPreset, AIDJMix } from '../types';
+import { Song, Album, Playlist, Artist, LyricsData, SpotifyPreset } from '../types';
 
 const configuredApiBase = (((import.meta as any).env?.VITE_API_BASE_URL as string) || '').replace(/\/$/, '');
 const isNativeApp = typeof window !== 'undefined'
@@ -183,14 +183,4 @@ export const api = {
     return this.importPlaylist(url);
   },
 
-  async generateAIDJMix(prompt: string, currentSong?: string): Promise<AIDJMix> {
-    const res = await fetch(apiUrl('/api/ai/dj'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, currentSong }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'AI DJ generation failed');
-    return data.data;
-  },
 };

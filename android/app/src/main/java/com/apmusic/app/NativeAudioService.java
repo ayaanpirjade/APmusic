@@ -12,6 +12,8 @@ import android.os.IBinder;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -45,7 +47,13 @@ public class NativeAudioService extends Service {
         super.onCreate();
         instance = this;
         createNotificationChannel();
-        player = new ExoPlayer.Builder(this).build();
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build();
+        player = new ExoPlayer.Builder(this)
+            .setAudioAttributes(audioAttributes, true)
+            .build();
         mediaSession = new MediaSession.Builder(this, player).build();
         startForeground(NOTIFICATION_ID, buildNotification());
     }

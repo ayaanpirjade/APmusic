@@ -6,7 +6,6 @@ import {
   Heart,
   ArrowDownToLine,
   Sliders,
-  Sparkles,
   Settings,
   PlusCircle,
   FolderPlus,
@@ -25,7 +24,6 @@ interface SidebarProps {
   setCurrentTab: (tab: NavigationTab) => void;
   onOpenCreatePlaylist: () => void;
   onOpenSpotifyModal: () => void;
-  onOpenAIDJ: () => void;
   onOpenEQ: () => void;
   onOpenLogin: () => void;
   onOpenOfflineModal?: () => void;
@@ -37,7 +35,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   onOpenCreatePlaylist,
   onOpenSpotifyModal,
-  onOpenAIDJ,
   onOpenEQ,
   onOpenLogin,
   onOpenOfflineModal,
@@ -82,16 +79,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
           Experience Tools
         </div>
-
-        <button
-          onClick={onOpenAIDJ}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-all group"
-        >
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-          </div>
-          <span>AI DJ & Mood Mix</span>
-        </button>
 
         <button
           onClick={onOpenSpotifyModal}

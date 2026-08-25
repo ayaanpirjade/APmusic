@@ -616,26 +616,24 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // Android uses the new direct stream contract for native background audio.
-      // The web app continues using the official YouTube iframe path exactly as before.
+      // Android resolves the exact YouTube ID on the device. The web app and
+      // its official iframe path remain unchanged.
       if (isAndroidNative && !playUrl && youtubeId) {
         try {
-          const nativeStream = await api.resolveAudioStream(
-            youtubeId,
-            activeSong.name,
-            activeSong.primaryArtists
-          );
-          if (nativeStream?.playUrl) {
+          const nativeStream = await NativeAudio.resolveYoutube({ youtubeId });
+          if (nativeStream?.url) {
             activeSong = {
               ...activeSong,
-              playUrl: nativeStream.playUrl,
-              downloadUrl: nativeStream.downloadUrl || activeSong.downloadUrl,
-              embedUrl: nativeStream.embedUrl || activeSong.embedUrl,
+              playUrl: nativeStream.url,
+              downloadUrl: [{
+                quality: nativeStream.quality || `${Math.round(Number(nativeStream.bitrate || 0) / 1000)}kbps`,
+                url: nativeStream.url,
+              }],
             };
-            playUrl = nativeStream.playUrl;
+            playUrl = nativeStream.url;
           }
         } catch (nativeResolveError) {
-          console.warn('Native direct stream resolve failed; falling back to YouTube:', nativeResolveError);
+          console.warn('Device-side YouTube resolve failed; falling back to the official iframe:', nativeResolveError);
         }
       }
 
@@ -1079,22 +1077,42 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Real Audio File Downloader
   const downloadSongFile = async (song: Song) => {
     try {
-      const url = resolvePlayUrl(song, '320kbps') || song.playUrl;
+      let url = resolvePlayUrl(song, '320kbps') || (song.playUrl && isDirectAudio(song.playUrl) ? song.playUrl : '') || '';
+      let mimeType = 'audio/mp4';
+      const youtubeId = extractYoutubeId(song);
+
+      if (isAndroidNative && youtubeId && !url) {
+        const nativeStream = await NativeAudio.resolveYoutube({ youtubeId });
+        url = nativeStream?.url || '';
+        mimeType = nativeStream?.mimeType || mimeType;
+      }
       if (!url) return;
+
+      const cleanFileName = `${song.name} - ${song.primaryArtists}`.replace(/[/\\?%*:|"<>]/g, '');
+      const extension = mimeType.includes('webm') ? 'webm' : 'm4a';
+
+      if (isAndroidNative) {
+        await NativeAudio.download({
+          url,
+          mimeType,
+          filename: `${cleanFileName}.${extension}`,
+        });
+        addOfflineSong({ ...song, isDownloaded: true });
+        return;
+      }
+
       const proxyUrl = toStreamProxyUrl(url);
       const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error(`Download request failed: ${response.status}`);
       const blob = await response.blob();
-
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      const cleanFileName = `${song.name} - ${song.primaryArtists}`.replace(/[/\\?%*:|"<>]/g, '');
-      a.download = `${cleanFileName}.m4a`;
+      a.download = `${cleanFileName}.${extension}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
-      // Also add to local offline library!
       addOfflineSong({
         ...song,
         isDownloaded: true,
@@ -1102,9 +1120,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
     } catch (err) {
       console.error('Download song error:', err);
-      // Fallback direct window download
-      const directUrl = resolvePlayUrl(song, '320kbps') || song.playUrl;
-      window.open(directUrl, '_blank');
+      if (!isAndroidNative) {
+        const directUrl = resolvePlayUrl(song, '320kbps') || (song.playUrl && isDirectAudio(song.playUrl) ? song.playUrl : '');
+        if (directUrl) window.open(directUrl, '_blank');
+      }
     }
   };
 
