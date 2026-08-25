@@ -617,7 +617,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // Android resolves the exact YouTube ID on the device. The web app and
       // its official iframe path remain unchanged.
-      if (isAndroidNative && !playUrl && youtubeId) {
+      if (isAndroidNative && youtubeId && !isDirectAudio(playUrl)) {
         try {
           const nativeStream = await NativeAudio.resolveYoutube({ youtubeId });
           if (nativeStream?.url) {
@@ -1086,7 +1086,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let mimeType = 'audio/mp4';
       const youtubeId = extractYoutubeId(song);
 
-      if (isAndroidNative && youtubeId && !url) {
+      if (isAndroidNative && youtubeId && !isDirectAudio(url)) {
         const nativeStream = await NativeAudio.resolveYoutube({ youtubeId });
         url = nativeStream?.url || '';
         mimeType = nativeStream?.mimeType || mimeType;
