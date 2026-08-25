@@ -1,7 +1,7 @@
 {
   "name": "APMUSIC Lossless",
   "short_name": "APMUSIC",
-  "description": "High-fidelity lossless music streaming with 320kbps audio, synced lyrics, studio equalizer and AI DJ",
+  "description": "High-fidelity lossless music streaming with 320kbps audio, synced lyrics, and studio equalizer",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
@@ -31,12 +31,6 @@
       "short_name": "Search",
       "description": "Quick search songs and artists",
       "url": "/?tab=search"
-    },
-    {
-      "name": "AI Mood DJ",
-      "short_name": "AI DJ",
-      "description": "Generate custom AI music mix",
-      "url": "/?tab=aidj"
     }
   ]
 }

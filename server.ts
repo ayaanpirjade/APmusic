@@ -12,7 +12,6 @@ import {
   getArtistDetails,
 } from './server/spotifyOnlyService.js';
 import { getLyrics } from './server/lyricsService.js';
-import { generateAIDJMix } from './server/aiService.js';
 import {
   searchPrimarySongs,
   getPrimaryCharts,
@@ -355,22 +354,6 @@ function createApp() {
       res.json({ success: true, data: primaryImported });
     } catch (err: any) {
       console.error('/api/playlist/import error:', err);
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // AI DJ & Smart Vibe Mix
-  app.post('/api/ai/dj', async (req, res) => {
-    try {
-      const { prompt, currentSong } = req.body;
-      if (!prompt || typeof prompt !== 'string') {
-        return res.status(400).json({ success: false, error: 'Vibe prompt is required' });
-      }
-
-      const mix = await generateAIDJMix(prompt, currentSong);
-      res.json({ success: true, data: mix });
-    } catch (err: any) {
-      console.error('/api/ai/dj error:', err);
       res.status(500).json({ success: false, error: err.message });
     }
   });
