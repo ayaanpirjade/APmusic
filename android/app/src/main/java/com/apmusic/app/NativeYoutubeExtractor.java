@@ -62,9 +62,10 @@ public final class NativeYoutubeExtractor {
         }
 
         List<AudioStream> sorted = new ArrayList<>(streams);
-        sorted.sort(Comparator
-            .comparingInt(NativeYoutubeExtractor::formatPriority).reversed()
-            .thenComparingInt(NativeYoutubeExtractor::bitrate).reversed());
+        sorted.sort(
+            Comparator.comparingInt(NativeYoutubeExtractor::formatPriority).reversed()
+                .thenComparing(Comparator.comparingInt(NativeYoutubeExtractor::bitrate).reversed())
+        );
 
         AudioStream selected = sorted.get(0);
         JSObject result = new JSObject();

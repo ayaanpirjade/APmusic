@@ -57,6 +57,7 @@ public class NativeAudioService extends MediaSessionService {
             ));
         player = new ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
             .build();
         player.addListener(new Player.Listener() {
