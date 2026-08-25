@@ -1,31 +1,25 @@
 package com.apmusic.app;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.app.Service;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.os.IBinder;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.app.NotificationCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
-import androidx.media3.common.Player;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
-import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.session.MediaSession;
+import androidx.media3.session.MediaSessionService;
 
 import com.getcapacitor.JSObject;
 
-public class NativeAudioService extends Service {
+public class NativeAudioService extends MediaSessionService {
     public static final String ACTION_PLAY = "com.apmusic.app.PLAY";
     public static final String ACTION_PAUSE = "com.apmusic.app.PAUSE";
     public static final String ACTION_RESUME = "com.apmusic.app.RESUME";
@@ -40,9 +34,6 @@ public class NativeAudioService extends Service {
     public static final String EXTRA_POSITION = "position";
     public static final String EXTRA_MIME = "mimeType";
 
-    private static final String CHANNEL_ID = "apmusic_native_audio";
-    private static final int NOTIFICATION_ID = 2402;
-
     private static NativeAudioService instance;
     private ExoPlayer player;
     private MediaSession mediaSession;
@@ -52,7 +43,7 @@ public class NativeAudioService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        createNotificationChannel();
+
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -74,14 +65,24 @@ public class NativeAudioService extends Service {
                 lastError = androidx.media3.common.PlaybackException.getErrorCodeName(error.errorCode) + ": " + error.getMessage();
                 android.util.Log.e("APMUSIC", "Native playback failed: " + lastError, error);
             }
+
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                android.util.Log.d("APMUSIC", "Native playback state=" + playbackState + " playing=" + player.isPlaying());
+            }
         });
         mediaSession = new MediaSession.Builder(this, player).build();
-        startForeground(NOTIFICATION_ID, buildNotification());
+    }
+
+    @Override
+    public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+        return mediaSession;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
+        super.onStartCommand(intent, flags, startId);
+        if (intent != null && player != null) {
             String action = intent.getAction();
             if (ACTION_PLAY.equals(action)) {
                 playFromIntent(intent);
@@ -93,6 +94,7 @@ public class NativeAudioService extends Service {
                 long position = (long) (intent.getDoubleExtra(EXTRA_POSITION, 0.0) * 1000.0);
                 player.seekTo(Math.max(0L, position));
             } else if (ACTION_STOP.equals(action)) {
+                player.stop();
                 stopSelf();
             }
         }
@@ -101,7 +103,10 @@ public class NativeAudioService extends Service {
 
     private void playFromIntent(Intent intent) {
         String url = intent.getStringExtra(EXTRA_URL);
-        if (url == null || url.isEmpty()) return;
+        if (url == null || url.isEmpty()) {
+            android.util.Log.e("APMUSIC", "Native play rejected: empty URL");
+            return;
+        }
 
         String title = intent.getStringExtra(EXTRA_TITLE);
         String artist = intent.getStringExtra(EXTRA_ARTIST);
@@ -113,66 +118,25 @@ public class NativeAudioService extends Service {
             .setTitle(title == null ? "APMUSIC" : title)
             .setArtist(artist == null ? "" : artist)
             .setAlbumTitle(album == null ? "APMUSIC" : album);
-        if (artwork != null && !artwork.isEmpty()) {
-            metadata.setArtworkUri(Uri.parse(artwork));
-        }
+        if (artwork != null && !artwork.isEmpty()) metadata.setArtworkUri(Uri.parse(artwork));
 
         MediaItem.Builder itemBuilder = new MediaItem.Builder()
             .setUri(Uri.parse(url))
             .setMediaMetadata(metadata.build());
         if (mimeType != null && !mimeType.isEmpty()) itemBuilder.setMimeType(mimeType);
-        MediaItem item = itemBuilder.build();
+
         lastError = "";
-        player.setMediaItem(item);
+        player.setMediaItem(itemBuilder.build());
         player.prepare();
         player.play();
+        android.util.Log.d("APMUSIC", "Native play requested url=" + url + " mime=" + mimeType);
     }
 
-    private Notification buildNotification() {
-        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        PendingIntent contentIntent = launchIntent == null ? null : PendingIntent.getActivity(
-            this,
-            0,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("APMUSIC")
-            .setContentText("Native background playback")
-            .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .addAction(android.R.drawable.ic_media_pause, "Pause", commandIntent(ACTION_PAUSE))
-            .addAction(android.R.drawable.ic_media_play, "Play", commandIntent(ACTION_RESUME));
-        if (contentIntent != null) builder.setContentIntent(contentIntent);
-        return builder.build();
-    }
-
-    private PendingIntent commandIntent(String action) {
-        Intent intent = new Intent(this, NativeAudioService.class).setAction(action);
-        return PendingIntent.getService(
-            this,
-            action.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-    }
-
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID,
-            "APMUSIC native playback",
-            NotificationManager.IMPORTANCE_LOW
-        );
-        channel.setDescription("Background and lock-screen music controls");
-        channel.setShowBadge(false);
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) manager.createNotificationChannel(channel);
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Do not stop or release the player when the app task is removed while
+        // music is playing. MediaSessionService owns the player independently.
+        if (player == null || !player.isPlaying()) super.onTaskRemoved(rootIntent);
     }
 
     public static JSObject getStatus() {
@@ -196,13 +160,12 @@ public class NativeAudioService extends Service {
         instance = null;
         if (mediaSession != null) mediaSession.release();
         if (player != null) player.release();
-        stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
 
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-        return null;
+        return super.onBind(intent);
     }
 }
