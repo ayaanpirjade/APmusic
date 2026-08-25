@@ -7,6 +7,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -19,17 +20,28 @@ import androidx.core.app.NotificationCompat;
 public class BackgroundPlaybackService extends Service {
     private static final String CHANNEL_ID = "apmusic_background_playback";
     private static final int NOTIFICATION_ID = 2401;
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
+
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        if (powerManager != null) {
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "APMUSIC:BackgroundPlayback"
+            );
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
 
     @Override
@@ -42,6 +54,9 @@ public class BackgroundPlaybackService extends Service {
 
     @Override
     public void onDestroy() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
         stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }
