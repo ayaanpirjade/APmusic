@@ -42,7 +42,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   };
 
   return (
-    <div className="apmusic-library-page w-full min-w-0 space-y-6 pb-40 pt-2 select-none">
+    <div className="apmusic-library-page relative z-10 block w-full min-w-0 space-y-6 pb-40 pt-2 select-none">
       {/* Top Header */}
       <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

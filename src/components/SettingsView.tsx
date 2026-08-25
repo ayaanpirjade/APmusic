@@ -88,7 +88,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="apmusic-settings-page w-full min-w-0 max-w-3xl mx-auto space-y-7 pb-40 pt-1 select-none">
+    <div className="apmusic-settings-page relative z-10 block w-full min-w-0 max-w-3xl mx-auto space-y-7 pb-40 pt-1 select-none">
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight font-['Outfit']">
