@@ -19,6 +19,8 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.session.MediaSession;
 
 import com.getcapacitor.JSObject;
@@ -55,8 +57,16 @@ public class NativeAudioService extends Service {
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build();
+        DefaultHttpDataSource.Factory dataSourceFactory = new DefaultHttpDataSource.Factory()
+            .setUserAgent("Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36")
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(java.util.Map.of(
+                "Referer", "https://www.youtube.com/",
+                "Accept", "*/*"
+            ));
         player = new ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
+            .setMediaSourceFactory(new DefaultMediaSourceFactory(dataSourceFactory))
             .build();
         player.addListener(new Player.Listener() {
             @Override
