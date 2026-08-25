@@ -248,3 +248,35 @@ html.capacitor-native .apmusic-settings-page span {
     max-width: 100%;
   }
 }
+
+/* Final Android WebView guard for Library/Profile content visibility. */
+html.capacitor-native .apmusic-library-page,
+html.capacitor-native .apmusic-settings-page {
+  display: block !important;
+  position: relative !important;
+  z-index: 1 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: calc(100dvh - 8rem);
+  contain: none !important;
+  overflow: visible !important;
+}
+
+html.capacitor-native .apmusic-library-page > *,
+html.capacitor-native .apmusic-settings-page > * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+html.capacitor-native .apmusic-library-page button,
+html.capacitor-native .apmusic-settings-page button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 600px) {
+  html.capacitor-native .apmusic-library-page,
+  html.capacitor-native .apmusic-settings-page {
+    padding-bottom: calc(10rem + env(safe-area-inset-bottom));
+  }
+}
