@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Song, RepeatMode, AudioQualitySetting, EqualizerBands, SyncedLyricLine, LyricsData } from '../types';
+import { registerPlugin } from '@capacitor/core';
 import { api, API_BASE_URL } from '../services/api';
 import { useAuth } from './AuthContext';
+
+const NativeAudio = registerPlugin<any>('NativeAudio');
+const isAndroidNative = typeof window !== 'undefined'
+  && (window as any).Capacitor?.getPlatform?.() === 'android'
+  && ((window as any).Capacitor?.isNativePlatform?.() || window.location.hostname === 'localhost');
 
 interface AudioContextType {
   currentSong: Song | null;
@@ -118,6 +124,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const bassBoostFilterRef = useRef<BiquadFilterNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const sleepTimerIntervalRef = useRef<any>(null);
+  const nativeAudioRef = useRef(false);
 
   // Initialize HTML Audio element
   useEffect(() => {
@@ -609,6 +616,29 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
+      // Android uses the new direct stream contract for native background audio.
+      // The web app continues using the official YouTube iframe path exactly as before.
+      if (isAndroidNative && !playUrl && youtubeId) {
+        try {
+          const nativeStream = await api.resolveAudioStream(
+            youtubeId,
+            activeSong.name,
+            activeSong.primaryArtists
+          );
+          if (nativeStream?.playUrl) {
+            activeSong = {
+              ...activeSong,
+              playUrl: nativeStream.playUrl,
+              downloadUrl: nativeStream.downloadUrl || activeSong.downloadUrl,
+              embedUrl: nativeStream.embedUrl || activeSong.embedUrl,
+            };
+            playUrl = nativeStream.playUrl;
+          }
+        } catch (nativeResolveError) {
+          console.warn('Native direct stream resolve failed; falling back to YouTube:', nativeResolveError);
+        }
+      }
+
       if (!isLatestRequest()) return;
       activeSong = preserveSelectedMetadata(song, activeSong);
 
@@ -634,7 +664,29 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         )
       );
 
-      if (rawPlayUrl && audioRef.current) {
+      if (rawPlayUrl && isAndroidNative) {
+        nativeAudioRef.current = true;
+        pauseYoutubeVideo();
+        youtubeVideoIdRef.current = '';
+        audioRef.current?.pause();
+        try {
+          await NativeAudio.play({
+            url: rawPlayUrl,
+            title: activeSong.name,
+            artist: activeSong.primaryArtists,
+            album: activeSong.album?.name || 'APMUSIC',
+            artwork: activeSong.image?.[activeSong.image.length - 1]?.url || '',
+          });
+          setIsLoadingSong(false);
+          setIsPlaying(true);
+        } catch (nativePlayError) {
+          nativeAudioRef.current = false;
+          console.warn('Native Android playback failed:', nativePlayError);
+          setIsPlaying(false);
+          setIsLoadingSong(false);
+        }
+      } else if (rawPlayUrl && audioRef.current) {
+        nativeAudioRef.current = false;
         pauseYoutubeVideo();
         audioRef.current.pause();
         audioRef.current.src = proxiedUrl;
@@ -647,6 +699,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setIsPlaying(false);
           });
       } else if (youtubeId) {
+        nativeAudioRef.current = false;
         audioRef.current?.pause();
         try {
           await playYoutubeVideo(youtubeId);
@@ -712,6 +765,26 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [audioQuality, queue, recordPlayHistory]
   );
 
+  // Keep the existing progress/lyrics UI synchronized with native ExoPlayer.
+  // This runs only in the Android APK; the website remains unchanged.
+  useEffect(() => {
+    if (!isAndroidNative || !nativeAudioRef.current || !isPlaying) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const status = await NativeAudio.getStatus();
+        if (!status?.available) return;
+        if (typeof status.position === 'number') setCurrentTime(status.position);
+        if (typeof status.duration === 'number' && status.duration > 0) setDuration(status.duration);
+        if (typeof status.isPlaying === 'boolean' && status.isPlaying !== isPlaying) {
+          setIsPlaying(status.isPlaying);
+        }
+      } catch (error) {
+        console.warn('Native audio status unavailable:', error);
+      }
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [isPlaying, currentSong]);
+
   // Sync lyrics position with currentTime
   useEffect(() => {
     if (!lyricsData?.syncedLyrics || lyricsData.syncedLyrics.length === 0) {
@@ -734,9 +807,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const togglePlay = () => {
     if (!currentSong) return;
     if (isPlaying) {
-      if (youtubeVideoIdRef.current) pauseYoutubeVideo();
+      if (nativeAudioRef.current) NativeAudio.pause();
+      else if (youtubeVideoIdRef.current) pauseYoutubeVideo();
       else audioRef.current?.pause();
       setIsPlaying(false);
+    } else if (nativeAudioRef.current) {
+      NativeAudio.resume().then(() => setIsPlaying(true)).catch(console.warn);
     } else if (youtubeVideoIdRef.current) {
       resumeYoutubeVideo();
     } else if (audioRef.current) {
@@ -749,13 +825,18 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const pause = () => {
-    if (youtubeVideoIdRef.current) pauseYoutubeVideo();
+    if (nativeAudioRef.current) NativeAudio.pause();
+    else if (youtubeVideoIdRef.current) pauseYoutubeVideo();
     else audioRef.current?.pause();
     setIsPlaying(false);
   };
 
   const resume = () => {
     if (!currentSong) return;
+    if (nativeAudioRef.current) {
+      NativeAudio.resume().then(() => setIsPlaying(true)).catch(console.warn);
+      return;
+    }
     if (youtubeVideoIdRef.current) {
       resumeYoutubeVideo();
       return;
@@ -841,7 +922,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [currentTime, queue, queueIndex, repeatMode, playSong]);
 
   const seek = (time: number) => {
-    if (youtubeVideoIdRef.current) {
+    if (nativeAudioRef.current) {
+      NativeAudio.seek({position: time});
+      setCurrentTime(time);
+    } else if (youtubeVideoIdRef.current) {
       youtubePlayerRef.current?.seekTo?.(time, true);
       setCurrentTime(time);
     } else if (audioRef.current) {
