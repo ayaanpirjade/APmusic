@@ -10,11 +10,13 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
@@ -34,6 +36,7 @@ public class NativeAudioService extends Service {
     public static final String EXTRA_ALBUM = "album";
     public static final String EXTRA_ARTWORK = "artwork";
     public static final String EXTRA_POSITION = "position";
+    public static final String EXTRA_MIME = "mimeType";
 
     private static final String CHANNEL_ID = "apmusic_native_audio";
     private static final int NOTIFICATION_ID = 2402;
@@ -41,6 +44,7 @@ public class NativeAudioService extends Service {
     private static NativeAudioService instance;
     private ExoPlayer player;
     private MediaSession mediaSession;
+    private volatile String lastError = "";
 
     @Override
     public void onCreate() {
@@ -54,6 +58,13 @@ public class NativeAudioService extends Service {
         player = new ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
             .build();
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlayerError(@NonNull androidx.media3.common.PlaybackException error) {
+                lastError = androidx.media3.common.PlaybackException.getErrorCodeName(error.errorCode) + ": " + error.getMessage();
+                android.util.Log.e("APMUSIC", "Native playback failed: " + lastError, error);
+            }
+        });
         mediaSession = new MediaSession.Builder(this, player).build();
         startForeground(NOTIFICATION_ID, buildNotification());
     }
@@ -86,6 +97,7 @@ public class NativeAudioService extends Service {
         String artist = intent.getStringExtra(EXTRA_ARTIST);
         String album = intent.getStringExtra(EXTRA_ALBUM);
         String artwork = intent.getStringExtra(EXTRA_ARTWORK);
+        String mimeType = intent.getStringExtra(EXTRA_MIME);
 
         MediaMetadata.Builder metadata = new MediaMetadata.Builder()
             .setTitle(title == null ? "APMUSIC" : title)
@@ -95,10 +107,12 @@ public class NativeAudioService extends Service {
             metadata.setArtworkUri(Uri.parse(artwork));
         }
 
-        MediaItem item = new MediaItem.Builder()
+        MediaItem.Builder itemBuilder = new MediaItem.Builder()
             .setUri(Uri.parse(url))
-            .setMediaMetadata(metadata.build())
-            .build();
+            .setMediaMetadata(metadata.build());
+        if (mimeType != null && !mimeType.isEmpty()) itemBuilder.setMimeType(mimeType);
+        MediaItem item = itemBuilder.build();
+        lastError = "";
         player.setMediaItem(item);
         player.prepare();
         player.play();
@@ -162,6 +176,8 @@ public class NativeAudioService extends Service {
         status.put("isPlaying", service.player.isPlaying());
         status.put("position", Math.max(0L, service.player.getCurrentPosition()) / 1000.0);
         status.put("duration", Math.max(0L, service.player.getDuration()) / 1000.0);
+        status.put("playbackState", service.player.getPlaybackState());
+        status.put("error", service.lastError);
         return status;
     }
 

@@ -26,12 +26,14 @@ public class NativeAudioPlugin extends Plugin {
             String artist = call.getString("artist", "");
             String album = call.getString("album", "APMUSIC");
             String artwork = call.getString("artwork", "");
+            String mimeType = call.getString("mimeType", "");
             double position = call.getDouble("position", 0.0);
             if (!url.isEmpty()) intent.putExtra(NativeAudioService.EXTRA_URL, url);
             intent.putExtra(NativeAudioService.EXTRA_TITLE, title);
             intent.putExtra(NativeAudioService.EXTRA_ARTIST, artist);
             intent.putExtra(NativeAudioService.EXTRA_ALBUM, album);
             intent.putExtra(NativeAudioService.EXTRA_ARTWORK, artwork);
+            intent.putExtra(NativeAudioService.EXTRA_MIME, mimeType);
             intent.putExtra(NativeAudioService.EXTRA_POSITION, position);
         }
 
@@ -93,6 +95,7 @@ public class NativeAudioPlugin extends Plugin {
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
             request.setTitle(safeFilename);
             request.setDescription("Downloading from APMUSIC");
+            request.addRequestHeader("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36");
             request.setMimeType(mimeType);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             request.setAllowedOverMetered(true);

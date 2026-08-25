@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Song, RepeatMode, AudioQualitySetting, EqualizerBands, SyncedLyricLine, LyricsData } from '../types';
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { api, API_BASE_URL } from '../services/api';
 import { useAuth } from './AuthContext';
 
 const NativeAudio = registerPlugin<any>('NativeAudio');
-const isAndroidNative = typeof window !== 'undefined'
-  && (window as any).Capacitor?.getPlatform?.() === 'android'
-  && ((window as any).Capacitor?.isNativePlatform?.() || window.location.hostname === 'localhost');
+const isAndroidNative = Capacitor.getPlatform() === 'android';
 
 interface AudioContextType {
   currentSong: Song | null;
@@ -575,6 +573,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let playUrl = resolvePlayUrl(activeSong, audioQuality);
       let embedUrl = activeSong.embedUrl || '';
       let youtubeId = extractYoutubeId(activeSong);
+      let nativeMimeType = '';
 
       // Latest Spotify search results already carry the exact YouTube ID. Start
       // that ID immediately; waiting for a detail/resolver request loses the
@@ -631,6 +630,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }],
             };
             playUrl = nativeStream.url;
+            nativeMimeType = nativeStream.mimeType || '';
           }
         } catch (nativeResolveError) {
           console.warn('Device-side YouTube resolve failed; falling back to the official iframe:', nativeResolveError);
@@ -674,6 +674,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             artist: activeSong.primaryArtists,
             album: activeSong.album?.name || 'APMUSIC',
             artwork: activeSong.image?.[activeSong.image.length - 1]?.url || '',
+            mimeType: nativeMimeType,
           });
           setIsLoadingSong(false);
           setIsPlaying(true);
@@ -766,14 +767,18 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Keep the existing progress/lyrics UI synchronized with native ExoPlayer.
   // This runs only in the Android APK; the website remains unchanged.
   useEffect(() => {
-    if (!isAndroidNative || !nativeAudioRef.current || !isPlaying) return;
+    if (!isAndroidNative || !nativeAudioRef.current || !currentSong) return;
     const timer = window.setInterval(async () => {
       try {
         const status = await NativeAudio.getStatus();
         if (!status?.available) return;
         if (typeof status.position === 'number') setCurrentTime(status.position);
         if (typeof status.duration === 'number' && status.duration > 0) setDuration(status.duration);
-        if (typeof status.isPlaying === 'boolean' && status.isPlaying !== isPlaying) {
+        if (status.error) {
+          console.warn('Native playback decoder error:', status.error);
+          setIsPlaying(false);
+          setIsLoadingSong(false);
+        } else if (typeof status.isPlaying === 'boolean' && status.isPlaying !== isPlaying) {
           setIsPlaying(status.isPlaying);
         }
       } catch (error) {
